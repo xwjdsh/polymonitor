@@ -1,0 +1,26 @@
+telegram:
+  bot_token: "your-telegram-bot-token-here"
+  chat_id: "your-telegram-chat-id-here"
+
+my_wallets:
+  - "0xYourWalletAddress"
+
+price_monitor:
+  interval_seconds: 60
+  default_threshold: 0.05
+  per_market: {}
+    # "conditionId":
+    #   above: 0.80        # take profit — alert when price >= 0.80
+    #   below: 0.30        # stop loss — alert when price <= 0.30
+    #   threshold: 0.10    # override default change threshold for this market
+
+position_changes:
+  interval_seconds: 3600
+
+account_tracker:
+  interval_seconds: 120
+  accounts: []
+    # - address: "0xTrackedAccount1"
+    #   label: "Whale A"
+    # - address: "0xTrackedAccount2"
+    #   label: "Smart Trader B"
