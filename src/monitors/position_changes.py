@@ -44,7 +44,8 @@ class PositionChanges:
         logger.info("Position changes: checking %d positions", len(positions))
 
         current_ids: set[str] = set()
-        lines: list[str] = []
+        # (abs_change, line) tuples for sorting
+        entries: list[tuple[float, str]] = []
         total_change = 0.0
 
         for pos in positions:
@@ -63,25 +64,31 @@ class PositionChanges:
                     threshold = market_config.threshold
                 if abs(change) > threshold:
                     total_change += change
-                    lines.append(
+                    entries.append((
+                        abs(change),
                         f"• {pos.title} [{pos.outcome}]\n"
-                        f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f})"
-                    )
+                        f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f})",
+                    ))
 
             self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value)
 
         # Detect closed positions
         for token_id, (title, outcome, prev_value) in list(self._last_snapshot.items()):
             if token_id not in current_ids:
-                lines.append(
+                entries.append((
+                    prev_value,
                     f"• {title} [{outcome}]\n"
-                    f"  ${prev_value:.2f} → CLOSED"
-                )
+                    f"  ${prev_value:.2f} → CLOSED",
+                ))
                 total_change -= prev_value
                 del self._last_snapshot[token_id]
 
-        if not lines:
+        if not entries:
             return
+
+        # Sort by absolute change descending
+        entries.sort(key=lambda e: e[0], reverse=True)
+        lines = [line for _, line in entries]
 
         header = f"📋 <b>Position Changes</b>\n<code>{wallet[:10]}...</code>\n"
         body = "\n\n".join(lines)
