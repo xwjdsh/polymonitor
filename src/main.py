@@ -48,23 +48,25 @@ async def run() -> None:
     # ── Schedule jobs ─────────────────────────────────────────
     scheduler = AsyncIOScheduler()
 
-    scheduler.add_job(
-        price_monitor.tick,
-        "interval",
-        seconds=config.price_monitor.interval_seconds,
-        id="price_monitor",
-        name="Price Monitor",
-    )
+    if config.price_monitor.interval_seconds > 0:
+        scheduler.add_job(
+            price_monitor.tick,
+            "interval",
+            seconds=config.price_monitor.interval_seconds,
+            id="price_monitor",
+            name="Price Monitor",
+        )
 
-    scheduler.add_job(
-        position_changes.tick,
-        "interval",
-        seconds=config.position_changes.interval_seconds,
-        id="position_changes",
-        name="Position Changes",
-    )
+    if config.position_changes.interval_seconds > 0:
+        scheduler.add_job(
+            position_changes.tick,
+            "interval",
+            seconds=config.position_changes.interval_seconds,
+            id="position_changes",
+            name="Position Changes",
+        )
 
-    if config.account_tracker.accounts:
+    if config.account_tracker.accounts and config.account_tracker.interval_seconds > 0:
         scheduler.add_job(
             account_tracker.tick,
             "interval",
@@ -78,8 +80,9 @@ async def run() -> None:
     await notifier.send("Polymonitor started")
 
     # ── Run first tick immediately ────────────────────────────
-    await price_monitor.tick()
-    if config.account_tracker.accounts:
+    if config.price_monitor.interval_seconds > 0:
+        await price_monitor.tick()
+    if config.account_tracker.accounts and config.account_tracker.interval_seconds > 0:
         await account_tracker.tick()
 
     # ── Wait for shutdown ─────────────────────────────────────
