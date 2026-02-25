@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Position(BaseModel):
@@ -51,6 +51,11 @@ class Activity(BaseModel):
     condition_id: str = Field("", alias="conditionId")
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def coerce_timestamp(cls, v: object) -> str:
+        return str(v)
 
 
 class PriceInfo(BaseModel):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from ..config import AccountTrackerConfig, TrackedAccount
 from ..notifier import Notifier
 from ..polymarket.client import PolymarketClient
@@ -39,6 +40,13 @@ class AccountTracker:
 
     async def _check_account(self, account: TrackedAccount) -> None:
         since = self._last_seen.get(account.address)
+        if since is None:
+            # First time seeing this account — set last_seen to now
+            # so we don't flood with historical activities.
+            self._last_seen[account.address] = datetime.now(timezone.utc).isoformat()
+            logger.info("Account tracker: initialized %s, skipping history", account.label)
+            return
+
         activities = await self._client.get_activity(
             wallet=account.address,
             limit=50,
