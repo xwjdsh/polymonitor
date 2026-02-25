@@ -12,6 +12,7 @@ from .polymarket.client import PolymarketClient
 from .monitors.price_monitor import PriceMonitor
 from .monitors.position_changes import PositionChanges
 from .monitors.account_tracker import AccountTracker
+from .state import StateManager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,6 +25,7 @@ async def run() -> None:
     config = load_config()
     client = PolymarketClient()
     notifier = Notifier(config.telegram)
+    state_mgr = StateManager(config.state_dir, config.state_max_age_seconds)
 
     # ── Init monitors ─────────────────────────────────────────
     price_monitor = PriceMonitor(
@@ -44,6 +46,35 @@ async def run() -> None:
         notifier=notifier,
         config=config.account_tracker,
     )
+
+    # ── Restore state from CSV files ──────────────────────────
+    pm_state = state_mgr.load_price_monitor()
+    if pm_state is not None:
+        price_monitor.import_state(*pm_state)
+
+    pc_state = state_mgr.load_position_changes()
+    if pc_state is not None:
+        position_changes.import_state(pc_state)
+
+    at_state = state_mgr.load_account_tracker()
+    if at_state is not None:
+        account_tracker.import_state(at_state)
+
+    # ── Save state helper ─────────────────────────────────────
+    def save_state() -> None:
+        try:
+            last_prices, triggered = price_monitor.export_state()
+            state_mgr.save_price_monitor(last_prices, triggered)
+        except Exception:
+            logger.exception("Failed to save price monitor state")
+        try:
+            state_mgr.save_position_changes(position_changes.export_state())
+        except Exception:
+            logger.exception("Failed to save position changes state")
+        try:
+            state_mgr.save_account_tracker(account_tracker.export_state())
+        except Exception:
+            logger.exception("Failed to save account tracker state")
 
     # ── Schedule jobs ─────────────────────────────────────────
     scheduler = AsyncIOScheduler()
@@ -75,6 +106,14 @@ async def run() -> None:
             name="Account Tracker",
         )
 
+    scheduler.add_job(
+        save_state,
+        "interval",
+        seconds=60,
+        id="save_state",
+        name="Save State",
+    )
+
     scheduler.start()
     logger.info("Polymonitor started")
     await notifier.send("Polymonitor started")
@@ -99,6 +138,7 @@ async def run() -> None:
     try:
         await stop_event.wait()
     finally:
+        save_state()
         scheduler.shutdown(wait=False)
         await client.close()
         logger.info("Polymonitor stopped")

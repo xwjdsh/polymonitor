@@ -26,33 +26,7 @@ uv venv && uv pip install -e "."
 cp config.example.yaml config.yaml
 ```
 
-Edit `config.yaml`:
-```yaml
-telegram:
-  bot_token: "your-bot-token"
-  chat_id: "your-chat-id"
-
-my_wallets:
-  - "0xYourPolymarketWallet"
-
-price_monitor:
-  interval_seconds: 60
-  default_threshold: 0.05       # alert on 5%+ moves
-  per_market:
-    # "conditionId":
-    #   above: 0.80             # take profit — alert when price >= 0.80
-    #   below: 0.30             # stop loss — alert when price <= 0.30
-    #   threshold: 0.10         # override default change threshold
-
-position_changes:
-  interval_seconds: 3600        # hourly
-
-account_tracker:
-  interval_seconds: 120
-  accounts:
-    - address: "0xSomeWhale"
-      label: "Whale A"
-```
+Edit `config.yaml` with your Telegram credentials, wallets, and thresholds. See [`config.example.yaml`](config.example.yaml) for all available options.
 
 > To get your Telegram chat ID: send any message to your bot, then visit
 > `https://api.telegram.org/bot<TOKEN>/getUpdates` and look for `chat.id`.
@@ -62,6 +36,10 @@ account_tracker:
 ```bash
 .venv/bin/python -m src.main
 ```
+
+## State Persistence
+
+Monitor state is saved to timestamped CSV files in `data/` every 60 seconds and on shutdown. On restart, state is reloaded if the file is younger than `state_max_age_seconds` (default 1 hour), preventing duplicate alerts. Configure via `state_dir` and `state_max_age_seconds` in `config.yaml`.
 
 ## How It Works
 

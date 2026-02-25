@@ -23,6 +23,12 @@ class AccountTracker:
         # address -> last seen activity timestamp (ISO string)
         self._last_seen: dict[str, str] = {}
 
+    def export_state(self) -> dict[str, str]:
+        return dict(self._last_seen)
+
+    def import_state(self, last_seen: dict[str, str]) -> None:
+        self._last_seen = last_seen
+
     async def tick(self) -> None:
         """Run one tracking cycle."""
         for account in self._accounts:

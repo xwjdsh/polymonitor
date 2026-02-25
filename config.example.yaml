@@ -24,3 +24,7 @@ account_tracker:
     #   label: "Whale A"
     # - address: "0xTrackedAccount2"
     #   label: "Smart Trader B"
+
+# State persistence — CSV files in this directory, ignored if older than max_age
+state_dir: "data"
+state_max_age_seconds: 3600

@@ -28,6 +28,13 @@ class PriceMonitor:
         # token_id -> set of alert keys already triggered (e.g. "above:0.8")
         self._triggered: dict[str, set[str]] = {}
 
+    def export_state(self) -> tuple[dict[str, float], dict[str, set[str]]]:
+        return self._last_prices.copy(), {k: set(v) for k, v in self._triggered.items()}
+
+    def import_state(self, last_prices: dict[str, float], triggered: dict[str, set[str]]) -> None:
+        self._last_prices = last_prices
+        self._triggered = triggered
+
     async def tick(self) -> None:
         for wallet in self._wallets:
             try:

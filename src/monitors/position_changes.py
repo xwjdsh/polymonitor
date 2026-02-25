@@ -23,6 +23,12 @@ class PositionChanges:
         # token_id -> (title, outcome, last_value)
         self._last_snapshot: dict[str, tuple[str, str, float]] = {}
 
+    def export_state(self) -> dict[str, tuple[str, str, float]]:
+        return dict(self._last_snapshot)
+
+    def import_state(self, last_snapshot: dict[str, tuple[str, str, float]]) -> None:
+        self._last_snapshot = last_snapshot
+
     async def tick(self) -> None:
         for wallet in self._wallets:
             try:
