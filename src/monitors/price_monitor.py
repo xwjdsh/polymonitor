@@ -47,6 +47,9 @@ class PriceMonitor:
         if not positions:
             return
 
+        token_count = sum(1 for p in positions if p.token_id)
+        logger.info("Price monitor: fetching prices for %d tokens", token_count)
+
         for pos in positions:
             if not pos.token_id:
                 continue
@@ -75,16 +78,16 @@ class PriceMonitor:
 
             change = current_price - last_price
             if abs(change) >= threshold:
-                direction = "UP" if change > 0 else "DOWN"
+                arrow = "⬆️ UP" if change > 0 else "⬇️ DOWN"
                 pct = change * 100
                 msg = (
-                    f"*Price Alert* {direction}\n\n"
-                    f"*{pos.event_title}*\n"
+                    f"📊 <b>Price Alert</b> {arrow}\n\n"
+                    f"<b>{pos.event_title}</b>\n"
                     f"{pos.title} — {pos.outcome}\n\n"
-                    f"Price: {last_price:.2f} -> {current_price:.2f} ({pct:+.1f}%)\n"
-                    f"Position size: {pos.size:.2f} shares"
+                    f"💰 {last_price:.2f} → {current_price:.2f} ({pct:+.1f}%)\n"
+                    f"📦 {pos.size:.2f} shares"
                 )
-                await self._notifier.send(msg)
+                await self._notifier.send_html(msg)
 
     async def _check_levels(self, pos, current_price: float, market_config) -> None:
         triggered = self._triggered.setdefault(pos.token_id, set())
@@ -94,13 +97,13 @@ class PriceMonitor:
             if current_price >= market_config.above and key not in triggered:
                 triggered.add(key)
                 msg = (
-                    f"*Take Profit Alert*\n\n"
-                    f"*{pos.event_title}*\n"
+                    f"🎯 <b>Take Profit Alert</b>\n\n"
+                    f"<b>{pos.event_title}</b>\n"
                     f"{pos.title} — {pos.outcome}\n\n"
-                    f"Price {current_price:.2f} crossed ABOVE {market_config.above:.2f}\n"
-                    f"Position size: {pos.size:.2f} shares"
+                    f"💰 {current_price:.2f} crossed above {market_config.above:.2f}\n"
+                    f"📦 {pos.size:.2f} shares"
                 )
-                await self._notifier.send(msg)
+                await self._notifier.send_html(msg)
             elif current_price < market_config.above:
                 triggered.discard(key)
 
@@ -109,12 +112,12 @@ class PriceMonitor:
             if current_price <= market_config.below and key not in triggered:
                 triggered.add(key)
                 msg = (
-                    f"*Stop Loss Alert*\n\n"
-                    f"*{pos.event_title}*\n"
+                    f"🛑 <b>Stop Loss Alert</b>\n\n"
+                    f"<b>{pos.event_title}</b>\n"
                     f"{pos.title} — {pos.outcome}\n\n"
-                    f"Price {current_price:.2f} crossed BELOW {market_config.below:.2f}\n"
-                    f"Position size: {pos.size:.2f} shares"
+                    f"💰 {current_price:.2f} crossed below {market_config.below:.2f}\n"
+                    f"📦 {pos.size:.2f} shares"
                 )
-                await self._notifier.send(msg)
+                await self._notifier.send_html(msg)
             elif current_price > market_config.below:
                 triggered.discard(key)

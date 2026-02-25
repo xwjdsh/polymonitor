@@ -13,9 +13,9 @@ _TIME_FMT = "%Y%m%d_%H%M%S"
 
 
 class StateManager:
-    def __init__(self, state_dir: str, max_age_seconds: int) -> None:
+    def __init__(self, state_dir: str) -> None:
         self._dir = Path(state_dir)
-        self._max_age = max_age_seconds
+        self._dir.mkdir(parents=True, exist_ok=True)
 
     def _ensure_dir(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
@@ -28,7 +28,7 @@ class StateManager:
             return None
         return candidates[0]
 
-    def _is_fresh(self, path: Path) -> bool:
+    def _is_fresh(self, path: Path, max_age_seconds: int) -> bool:
         stem = path.stem  # e.g. price_monitor_20260225_120000
         # Extract timestamp from the last two underscore-separated parts
         parts = stem.rsplit("_", 2)
@@ -40,7 +40,7 @@ class StateManager:
         except ValueError:
             return False
         age = (datetime.now(timezone.utc) - ts).total_seconds()
-        return age <= self._max_age
+        return age <= max_age_seconds
 
     def _remove_old(self, prefix: str) -> None:
         if not self._dir.exists():
@@ -66,7 +66,7 @@ class StateManager:
             except OSError:
                 pass
             raise
-        logger.info("Saved state to %s", target)
+        logger.debug("Saved state to %s", target)
 
     # ── Price Monitor ──────────────────────────────────────────
 
@@ -83,9 +83,9 @@ class StateManager:
             rows.append([token_id, str(price), triggers])
         self._atomic_write("price_monitor", ["token_id", "last_price", "triggered"], rows)
 
-    def load_price_monitor(self) -> tuple[dict[str, float], dict[str, set[str]]] | None:
+    def load_price_monitor(self, interval_seconds: int) -> tuple[dict[str, float], dict[str, set[str]]] | None:
         path = self._find_latest("price_monitor")
-        if path is None or not self._is_fresh(path):
+        if path is None or not self._is_fresh(path, interval_seconds):
             return None
         last_prices: dict[str, float] = {}
         triggered: dict[str, set[str]] = {}
@@ -97,7 +97,7 @@ class StateManager:
                     last_prices[token_id] = float(row["last_price"])
                 if row["triggered"]:
                     triggered[token_id] = set(row["triggered"].split(","))
-        logger.info("Loaded price monitor state from %s", path)
+        logger.debug("Loaded price monitor state from %s", path)
         return last_prices, triggered
 
     # ── Position Changes ───────────────────────────────────────
@@ -116,9 +116,9 @@ class StateManager:
             rows,
         )
 
-    def load_position_changes(self) -> dict[str, tuple[str, str, float]] | None:
+    def load_position_changes(self, interval_seconds: int) -> dict[str, tuple[str, str, float]] | None:
         path = self._find_latest("position_changes")
-        if path is None or not self._is_fresh(path):
+        if path is None or not self._is_fresh(path, interval_seconds):
             return None
         snapshot: dict[str, tuple[str, str, float]] = {}
         with open(path, newline="") as f:
@@ -129,7 +129,7 @@ class StateManager:
                     row["outcome"],
                     float(row["value"]),
                 )
-        logger.info("Loaded position changes state from %s", path)
+        logger.debug("Loaded position changes state from %s", path)
         return snapshot
 
     # ── Account Tracker ────────────────────────────────────────
@@ -138,14 +138,14 @@ class StateManager:
         rows = [[addr, ts] for addr, ts in sorted(last_seen.items())]
         self._atomic_write("account_tracker", ["address", "last_seen"], rows)
 
-    def load_account_tracker(self) -> dict[str, str] | None:
+    def load_account_tracker(self, interval_seconds: int) -> dict[str, str] | None:
         path = self._find_latest("account_tracker")
-        if path is None or not self._is_fresh(path):
+        if path is None or not self._is_fresh(path, interval_seconds):
             return None
         last_seen: dict[str, str] = {}
         with open(path, newline="") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 last_seen[row["address"]] = row["last_seen"]
-        logger.info("Loaded account tracker state from %s", path)
+        logger.debug("Loaded account tracker state from %s", path)
         return last_seen

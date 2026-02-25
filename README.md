@@ -39,7 +39,7 @@ Edit `config.yaml` with your Telegram credentials, wallets, and thresholds. See 
 
 ## State Persistence
 
-Monitor state is saved to timestamped CSV files in `data/` every 60 seconds and on shutdown. On restart, state is reloaded if the file is younger than `state_max_age_seconds` (default 1 hour), preventing duplicate alerts. Configure via `state_dir` and `state_max_age_seconds` in `config.yaml`.
+Monitor state is saved to timestamped CSV files in `data/` every 60 seconds and on shutdown. On restart, state is reloaded if the file is younger than the monitor's `interval_seconds`, preventing duplicate alerts. Configure the directory via `state_dir` in `config.yaml`.
 
 ## How It Works
 

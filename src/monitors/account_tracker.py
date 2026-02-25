@@ -46,6 +46,7 @@ class AccountTracker:
         )
 
         if not activities:
+            logger.info("Account tracker: no new activity for %s", account.label)
             return
 
         # Filter only truly new activities (after last_seen)
@@ -61,15 +62,14 @@ class AccountTracker:
 
         # Group and send
         for activity in activities:
-            side_emoji = "BUY" if activity.side == "BUY" else "SELL"
+            side_emoji = "🟢 BUY" if activity.side == "BUY" else "🔴 SELL"
             msg = (
-                f"*Account Activity*\n\n"
-                f"*{account.label}* (`{account.address[:10]}...`)\n\n"
-                f"Type: {activity.type} | Side: {side_emoji}\n"
-                f"Market: {activity.event_title}\n"
+                f"👁 <b>Account Activity</b>\n\n"
+                f"<b>{account.label}</b> (<code>{account.address[:10]}...</code>)\n\n"
+                f"{activity.type} | {side_emoji}\n"
+                f"📈 {activity.event_title}\n"
                 f"{activity.title} — {activity.outcome}\n"
-                f"Amount: {activity.tokens:.2f} shares @ ${activity.price:.2f}\n"
-                f"Value: ${activity.cash:.2f}\n"
-                f"Time: {activity.timestamp}"
+                f"💰 {activity.tokens:.2f} shares @ ${activity.price:.2f} (${activity.cash:.2f})\n"
+                f"🕐 {activity.timestamp}"
             )
-            await self._notifier.send(msg)
+            await self._notifier.send_html(msg)

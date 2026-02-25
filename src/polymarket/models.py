@@ -16,7 +16,7 @@ class Position(BaseModel):
     cur_price: float = Field(0.0, alias="curPrice")
     cashout_price: float = Field(0.0, alias="cashoutPrice")
     profit_loss_cents: float = Field(0.0, alias="profitLossCents")
-    token_id: str = Field("", alias="tokenId")
+    token_id: str = Field("", alias="asset")
     event_slug: str = Field("", alias="eventSlug")
     event_title: str = Field("", alias="eventTitle")
 

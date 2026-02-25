@@ -25,6 +25,5 @@ account_tracker:
     # - address: "0xTrackedAccount2"
     #   label: "Smart Trader B"
 
-# State persistence — CSV files in this directory, ignored if older than max_age
+# State persistence — CSV files in this directory, stale if older than monitor's interval
 state_dir: "data"
-state_max_age_seconds: 3600

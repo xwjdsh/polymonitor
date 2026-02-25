@@ -44,7 +44,6 @@ class AppConfig(BaseModel):
     position_changes: PositionChangesConfig = PositionChangesConfig()
     account_tracker: AccountTrackerConfig = AccountTrackerConfig()
     state_dir: str = "data"
-    state_max_age_seconds: int = 3600
 
 
 def load_config(config_path: str | Path | None = None) -> AppConfig:

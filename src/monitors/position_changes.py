@@ -38,6 +38,7 @@ class PositionChanges:
 
     async def _check_wallet(self, wallet: str) -> None:
         positions = await self._client.get_positions(wallet)
+        logger.info("Position changes: checking %d positions", len(positions))
 
         current_ids: set[str] = set()
         lines: list[str] = []
@@ -56,8 +57,8 @@ class PositionChanges:
                 if abs(change) > 0.005:
                     total_change += change
                     lines.append(
-                        f"  {pos.title} [{pos.outcome}]\n"
-                        f"    ${prev_value:.2f} -> ${value:.2f} ({change:+.2f})"
+                        f"• {pos.title} [{pos.outcome}]\n"
+                        f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f})"
                     )
 
             self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value)
@@ -66,8 +67,8 @@ class PositionChanges:
         for token_id, (title, outcome, prev_value) in list(self._last_snapshot.items()):
             if token_id not in current_ids:
                 lines.append(
-                    f"  {title} [{outcome}]\n"
-                    f"    ${prev_value:.2f} -> CLOSED"
+                    f"• {title} [{outcome}]\n"
+                    f"  ${prev_value:.2f} → CLOSED"
                 )
                 total_change -= prev_value
                 del self._last_snapshot[token_id]
@@ -75,7 +76,7 @@ class PositionChanges:
         if not lines:
             return
 
-        header = f"*Position Changes*\n`{wallet[:10]}...`\n"
-        body = "\n".join(lines)
-        footer = f"\n*Net change:* ${total_change:+.2f}"
-        await self._notifier.send(f"{header}\n{body}\n{footer}")
+        header = f"📋 <b>Position Changes</b>\n<code>{wallet[:10]}...</code>\n"
+        body = "\n\n".join(lines)
+        footer = f"\n<b>Net change:</b> ${total_change:+.2f}"
+        await self._notifier.send_html(f"{header}\n{body}\n{footer}")

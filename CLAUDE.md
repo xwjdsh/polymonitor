@@ -47,7 +47,7 @@ uv venv && uv pip install -e "."
 - `config.example.yaml` — template to copy from
 
 ### State Persistence
-Monitor state is saved to timestamped CSV files in `data/` (one file per monitor, overwritten each save). On restart, state is reloaded if the file is younger than `state_max_age_seconds` (default 3600s), preventing duplicate alerts. State is saved every 60s and on shutdown.
+Monitor state is saved to timestamped CSV files in `data/` (one file per monitor, overwritten each save). On restart, state is reloaded if the file is younger than the monitor's `interval_seconds`, preventing duplicate alerts. State is saved every 60s and on shutdown.
 
 ## Key Dependencies
 - `httpx` — async HTTP

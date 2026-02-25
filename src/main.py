@@ -18,6 +18,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -25,7 +27,7 @@ async def run() -> None:
     config = load_config()
     client = PolymarketClient()
     notifier = Notifier(config.telegram)
-    state_mgr = StateManager(config.state_dir, config.state_max_age_seconds)
+    state_mgr = StateManager(config.state_dir)
 
     # ── Init monitors ─────────────────────────────────────────
     price_monitor = PriceMonitor(
@@ -48,15 +50,15 @@ async def run() -> None:
     )
 
     # ── Restore state from CSV files ──────────────────────────
-    pm_state = state_mgr.load_price_monitor()
+    pm_state = state_mgr.load_price_monitor(config.price_monitor.interval_seconds)
     if pm_state is not None:
         price_monitor.import_state(*pm_state)
 
-    pc_state = state_mgr.load_position_changes()
+    pc_state = state_mgr.load_position_changes(config.position_changes.interval_seconds)
     if pc_state is not None:
         position_changes.import_state(pc_state)
 
-    at_state = state_mgr.load_account_tracker()
+    at_state = state_mgr.load_account_tracker(config.account_tracker.interval_seconds)
     if at_state is not None:
         account_tracker.import_state(at_state)
 
@@ -116,13 +118,18 @@ async def run() -> None:
 
     scheduler.start()
     logger.info("Polymonitor started")
-    await notifier.send("Polymonitor started")
+    await notifier.send_html("✅ <b>Polymonitor started</b>")
 
-    # ── Run first tick immediately ────────────────────────────
-    if config.price_monitor.interval_seconds > 0:
+    # ── First tick: fetch immediately if no prior state for that monitor ──
+    if config.price_monitor.interval_seconds > 0 and pm_state is None:
         await price_monitor.tick()
-    if config.account_tracker.accounts and config.account_tracker.interval_seconds > 0:
+        state_mgr.save_price_monitor(*price_monitor.export_state())
+    if config.position_changes.interval_seconds > 0 and pc_state is None:
+        await position_changes.tick()
+        state_mgr.save_position_changes(position_changes.export_state())
+    if config.account_tracker.accounts and config.account_tracker.interval_seconds > 0 and at_state is None:
         await account_tracker.tick()
+        state_mgr.save_account_tracker(account_tracker.export_state())
 
     # ── Wait for shutdown ─────────────────────────────────────
     stop_event = asyncio.Event()
