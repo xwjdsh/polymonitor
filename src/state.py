@@ -104,30 +104,32 @@ class StateManager:
 
     def save_position_changes(
         self,
-        last_snapshot: dict[str, tuple[str, str, float]],
+        last_snapshot: dict[str, tuple[str, str, float, float]],
     ) -> None:
         rows: list[list[str]] = []
         for token_id in sorted(last_snapshot):
-            title, outcome, value = last_snapshot[token_id]
-            rows.append([token_id, title, outcome, str(value)])
+            title, outcome, value, size = last_snapshot[token_id]
+            rows.append([token_id, title, outcome, str(value), str(size)])
         self._atomic_write(
             "position_changes",
-            ["token_id", "title", "outcome", "value"],
+            ["token_id", "title", "outcome", "value", "size"],
             rows,
         )
 
-    def load_position_changes(self, interval_seconds: int) -> dict[str, tuple[str, str, float]] | None:
+    def load_position_changes(self, interval_seconds: int) -> dict[str, tuple[str, str, float, float]] | None:
         path = self._find_latest("position_changes")
         if path is None or not self._is_fresh(path, interval_seconds):
             return None
-        snapshot: dict[str, tuple[str, str, float]] = {}
+        snapshot: dict[str, tuple[str, str, float, float]] = {}
         with open(path, newline="") as f:
             reader = csv.DictReader(f)
             for row in reader:
+                size = float(row["size"]) if "size" in row else 0.0
                 snapshot[row["token_id"]] = (
                     row["title"],
                     row["outcome"],
                     float(row["value"]),
+                    size,
                 )
         logger.debug("Loaded position changes state from %s", path)
         return snapshot

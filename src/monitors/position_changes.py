@@ -23,13 +23,13 @@ class PositionChanges:
         self._notifier = notifier
         self._wallets = wallets
         self._config = config
-        # token_id -> (title, outcome, last_value)
-        self._last_snapshot: dict[str, tuple[str, str, float]] = {}
+        # token_id -> (title, outcome, last_value, size)
+        self._last_snapshot: dict[str, tuple[str, str, float, float]] = {}
 
-    def export_state(self) -> dict[str, tuple[str, str, float]]:
+    def export_state(self) -> dict[str, tuple[str, str, float, float]]:
         return dict(self._last_snapshot)
 
-    def import_state(self, last_snapshot: dict[str, tuple[str, str, float]]) -> None:
+    def import_state(self, last_snapshot: dict[str, tuple[str, str, float, float]]) -> None:
         self._last_snapshot = last_snapshot
 
     async def tick(self) -> None:
@@ -53,10 +53,18 @@ class PositionChanges:
                 continue
             current_ids.add(pos.token_id)
             value = pos.current_value
+            size = pos.size
             prev = self._last_snapshot.get(pos.token_id)
 
             if prev is not None:
-                _, _, prev_value = prev
+                _, _, prev_value, prev_size = prev
+                if prev_size > 0 and size != prev_size:
+                    logger.debug(
+                        "Skipping %s [%s]: quantity changed %.4f → %.4f (buy/sell)",
+                        pos.title, pos.outcome, prev_size, size,
+                    )
+                    self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, size)
+                    continue
                 change = value - prev_value
                 threshold = self._config.default_threshold
                 market_config = self._config.per_market.get(pos.condition_id)
@@ -70,10 +78,10 @@ class PositionChanges:
                         f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f})",
                     ))
 
-            self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value)
+            self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, size)
 
         # Detect closed positions
-        for token_id, (title, outcome, prev_value) in list(self._last_snapshot.items()):
+        for token_id, (title, outcome, prev_value, _) in list(self._last_snapshot.items()):
             if token_id not in current_ids:
                 entries.append((
                     prev_value,
