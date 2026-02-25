@@ -41,6 +41,7 @@ async def run() -> None:
         client=client,
         notifier=notifier,
         wallets=config.my_wallets,
+        config=config.position_changes,
     )
 
     account_tracker = AccountTracker(

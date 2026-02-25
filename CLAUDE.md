@@ -5,7 +5,7 @@ A Python long-running service that monitors Polymarket positions and sends Teleg
 
 ### Three core monitors:
 1. **Price Monitor** — Polls positions, alerts on price change threshold or above/below level crossings (stop loss / take profit)
-2. **Position Changes** — Periodically reports only positions whose value changed since last check
+2. **Position Changes** — Periodically reports only positions whose value changed beyond a configurable threshold, with per-market overrides
 3. **Account Tracker** — Watches specified wallets for new trading activity
 
 ## Project Structure

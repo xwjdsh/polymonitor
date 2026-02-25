@@ -5,7 +5,7 @@ Personal Polymarket trading monitor. Tracks your positions, alerts on price chan
 ## Features
 
 - **Price Alerts** — Monitor your positions and get notified when prices move beyond a configurable threshold (default 5%), with per-market above/below levels for stop loss and take profit
-- **Position Changes** — Periodic reports of only the positions whose value changed since last check, including detection of closed positions
+- **Position Changes** — Periodic reports of positions whose value changed beyond a configurable threshold (default $0.10), with per-market overrides and detection of closed positions
 - **Account Tracker** — Watch specific wallets (whales, smart traders) and get notified when they trade
 
 ## Setup

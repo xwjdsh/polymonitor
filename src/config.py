@@ -28,8 +28,14 @@ class PriceMonitorConfig(BaseModel):
     per_market: dict[str, PriceAlert] = {}
 
 
+class PositionChangeMarket(BaseModel):
+    threshold: float | None = None
+
+
 class PositionChangesConfig(BaseModel):
     interval_seconds: int = 3600
+    default_threshold: float = 0.1
+    per_market: dict[str, PositionChangeMarket] = {}
 
 
 class AccountTrackerConfig(BaseModel):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from ..config import PositionChangesConfig
 from ..notifier import Notifier
 from ..polymarket.client import PolymarketClient
 
@@ -16,10 +17,12 @@ class PositionChanges:
         client: PolymarketClient,
         notifier: Notifier,
         wallets: list[str],
+        config: PositionChangesConfig,
     ) -> None:
         self._client = client
         self._notifier = notifier
         self._wallets = wallets
+        self._config = config
         # token_id -> (title, outcome, last_value)
         self._last_snapshot: dict[str, tuple[str, str, float]] = {}
 
@@ -54,7 +57,11 @@ class PositionChanges:
             if prev is not None:
                 _, _, prev_value = prev
                 change = value - prev_value
-                if abs(change) > 0.005:
+                threshold = self._config.default_threshold
+                market_config = self._config.per_market.get(pos.condition_id)
+                if market_config and market_config.threshold is not None:
+                    threshold = market_config.threshold
+                if abs(change) > threshold:
                     total_change += change
                     lines.append(
                         f"• {pos.title} [{pos.outcome}]\n"
