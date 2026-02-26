@@ -80,15 +80,9 @@ class PositionChanges:
 
             self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, size)
 
-        # Detect closed positions
-        for token_id, (title, outcome, prev_value, _) in list(self._last_snapshot.items()):
+        # Remove closed positions from snapshot without notifying
+        for token_id in list(self._last_snapshot):
             if token_id not in current_ids:
-                entries.append((
-                    prev_value,
-                    f"• {title} [{outcome}]\n"
-                    f"  ${prev_value:.2f} → CLOSED",
-                ))
-                total_change -= prev_value
                 del self._last_snapshot[token_id]
 
         if not entries:
