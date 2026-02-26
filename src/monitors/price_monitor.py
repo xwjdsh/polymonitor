@@ -28,6 +28,8 @@ class PriceMonitor:
         self._last_prices: dict[str, float] = {}
         # token_id -> set of alert keys already triggered (e.g. "above:0.8")
         self._triggered: dict[str, set[str]] = {}
+        # condition_ids of markets known to be settled/inactive
+        self._inactive_markets: set[str] = set()
 
     def export_state(self) -> tuple[dict[str, float], dict[str, set[str]]]:
         return self._last_prices.copy(), {k: set(v) for k, v in self._triggered.items()}
@@ -43,6 +45,20 @@ class PriceMonitor:
             except Exception:
                 logger.exception("Price monitor error for wallet %s", wallet)
 
+    async def _is_market_settled(self, condition_id: str) -> bool:
+        """Check if a market is settled/inactive. Caches results for inactive markets."""
+        if condition_id in self._inactive_markets:
+            return True
+        try:
+            market = await self._client.get_market(condition_id)
+            if market and not market.active:
+                self._inactive_markets.add(condition_id)
+                logger.info("Market %s is settled, skipping alerts", condition_id)
+                return True
+        except Exception:
+            logger.warning("Failed to check market status for %s", condition_id)
+        return False
+
     async def _check_wallet(self, wallet: str) -> None:
         positions = await self._client.get_positions(wallet)
         if not positions:
@@ -54,6 +70,10 @@ class PriceMonitor:
 
         for pos in positions:
             if not pos.token_id:
+                continue
+
+            # Skip markets already known to be settled
+            if pos.condition_id in self._inactive_markets:
                 continue
 
             try:
@@ -80,6 +100,9 @@ class PriceMonitor:
 
             change = current_price - last_price
             if abs(change) >= threshold:
+                # Check if market is settled before alerting
+                if await self._is_market_settled(pos.condition_id):
+                    continue
                 arrow = "⬆️ UP" if change > 0 else "⬇️ DOWN"
                 pct = change * 100
                 msg = (
@@ -92,6 +115,8 @@ class PriceMonitor:
                 await self._notifier.send_html(msg)
 
     async def _check_levels(self, pos, current_price: float, market_config) -> None:
+        if await self._is_market_settled(pos.condition_id):
+            return
         triggered = self._triggered.setdefault(pos.token_id, set())
 
         if market_config.above is not None:
