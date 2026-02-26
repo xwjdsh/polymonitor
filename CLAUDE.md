@@ -13,8 +13,10 @@ A Python long-running service that monitors Polymarket positions and sends Teleg
 src/
 ├── main.py                  # Entry point, APScheduler setup, signal handling
 ├── config.py                # Loads config.yaml (Pydantic models)
+├── config_manager.py        # Thread-safe config holder with live update support
 ├── notifier.py              # Telegram bot sender with console fallback
 ├── state.py                 # StateManager — CSV-based state persistence
+├── web.py                   # FastAPI web UI + config API + positions API
 ├── polymarket/
 │   ├── client.py            # Async httpx client for Polymarket public APIs
 │   └── models.py            # Pydantic models (Position, Market, Activity)
@@ -45,6 +47,14 @@ uv venv && uv pip install -e "."
 ### Configuration
 - `config.yaml` — all settings (Telegram credentials, wallets, thresholds, intervals, tracked accounts)
 - `config.example.yaml` — template to copy from
+- Web UI at `http://localhost:<web_port>` — edit monitor settings with market selector dropdowns (populated from current positions) and dynamic forms; no raw YAML editing needed
+- Runtime config changes saved to `data/monitors.yaml` and applied on restart
+
+### Web API Endpoints
+- `GET /` — Config editor UI
+- `GET /api/config` — Current monitor configuration
+- `PUT /api/config` — Update monitor configuration
+- `GET /api/positions` — Deduplicated list of current positions across all wallets (used by UI market selectors)
 
 ### State Persistence
 Monitor state is saved to timestamped CSV files in `data/` (one file per monitor, overwritten each save). On restart, state is reloaded if the file is younger than the monitor's `interval_seconds`, preventing duplicate alerts. State is saved every 60s and on shutdown.
@@ -55,3 +65,4 @@ Monitor state is saved to timestamped CSV files in `data/` (one file per monitor
 - `python-telegram-bot` — notifications
 - `apscheduler` — job scheduling
 - `pyyaml` — config loading
+- `fastapi` + `uvicorn` — web UI & config API

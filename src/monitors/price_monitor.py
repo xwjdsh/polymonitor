@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from ..config import PriceMonitorConfig
 from ..notifier import Notifier
 from ..polymarket.client import PolymarketClient
+
+if TYPE_CHECKING:
+    from ..config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +19,11 @@ class PriceMonitor:
         self,
         client: PolymarketClient,
         notifier: Notifier,
-        wallets: list[str],
-        config: PriceMonitorConfig,
+        config_mgr: ConfigManager,
     ) -> None:
         self._client = client
         self._notifier = notifier
-        self._wallets = wallets
-        self._config = config
+        self._config_mgr = config_mgr
         # token_id -> last known price
         self._last_prices: dict[str, float] = {}
         # token_id -> set of alert keys already triggered (e.g. "above:0.8")
@@ -36,7 +37,7 @@ class PriceMonitor:
         self._triggered = triggered
 
     async def tick(self) -> None:
-        for wallet in self._wallets:
+        for wallet in self._config_mgr.config.my_wallets:
             try:
                 await self._check_wallet(wallet)
             except Exception:
@@ -47,6 +48,7 @@ class PriceMonitor:
         if not positions:
             return
 
+        config = self._config_mgr.config.price_monitor
         token_count = sum(1 for p in positions if p.token_id)
         logger.info("Price monitor: fetching prices for %d tokens", token_count)
 
@@ -64,7 +66,7 @@ class PriceMonitor:
             self._last_prices[pos.token_id] = current_price
 
             # Per-market level alerts (above/below)
-            market_config = self._config.per_market.get(pos.condition_id)
+            market_config = config.per_market.get(pos.condition_id)
             if market_config:
                 await self._check_levels(pos, current_price, market_config)
 
@@ -72,7 +74,7 @@ class PriceMonitor:
             if last_price is None:
                 continue
 
-            threshold = self._config.default_threshold
+            threshold = config.default_threshold
             if market_config and market_config.threshold is not None:
                 threshold = market_config.threshold
 

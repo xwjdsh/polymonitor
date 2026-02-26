@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from ..config import PositionChangesConfig
 from ..notifier import Notifier
 from ..polymarket.client import PolymarketClient
+
+if TYPE_CHECKING:
+    from ..config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +19,11 @@ class PositionChanges:
         self,
         client: PolymarketClient,
         notifier: Notifier,
-        wallets: list[str],
-        config: PositionChangesConfig,
+        config_mgr: ConfigManager,
     ) -> None:
         self._client = client
         self._notifier = notifier
-        self._wallets = wallets
-        self._config = config
+        self._config_mgr = config_mgr
         # token_id -> (title, outcome, last_value, size)
         self._last_snapshot: dict[str, tuple[str, str, float, float]] = {}
 
@@ -33,7 +34,7 @@ class PositionChanges:
         self._last_snapshot = last_snapshot
 
     async def tick(self) -> None:
-        for wallet in self._wallets:
+        for wallet in self._config_mgr.config.my_wallets:
             try:
                 await self._check_wallet(wallet)
             except Exception:
@@ -43,6 +44,7 @@ class PositionChanges:
         positions = await self._client.get_positions(wallet)
         logger.info("Position changes: checking %d positions", len(positions))
 
+        config = self._config_mgr.config.position_changes
         current_ids: set[str] = set()
         # (abs_change, line) tuples for sorting
         entries: list[tuple[float, str]] = []
@@ -66,8 +68,8 @@ class PositionChanges:
                     self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, size)
                     continue
                 change = value - prev_value
-                threshold = self._config.default_threshold
-                market_config = self._config.per_market.get(pos.condition_id)
+                threshold = config.default_threshold
+                market_config = config.per_market.get(pos.condition_id)
                 if market_config and market_config.threshold is not None:
                     threshold = market_config.threshold
                 if abs(change) > threshold:

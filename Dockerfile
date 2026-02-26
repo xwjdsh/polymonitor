@@ -13,4 +13,6 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin/polymonitor /usr/local/bin/polymonitor
 COPY src/ src/
 
+EXPOSE 8888
+
 CMD ["polymonitor"]

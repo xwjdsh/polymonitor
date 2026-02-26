@@ -37,6 +37,14 @@ Edit `config.yaml` with your Telegram credentials, wallets, and thresholds. See 
 .venv/bin/python -m src.main
 ```
 
+## Web UI
+
+A config editor runs at `http://localhost:8888` (configurable via `web_port`). It lets you adjust monitor settings without editing YAML:
+
+- **Per-market overrides** — Select markets from a dropdown of your current positions and set thresholds, above/below levels
+- **Tracked accounts** — Add/remove wallets with labels
+- Changes are saved to `data/monitors.yaml` and applied immediately (scheduler intervals are rescheduled live)
+
 ## State Persistence
 
 Monitor state is saved to timestamped CSV files in `data/` every 60 seconds and on shutdown. On restart, state is reloaded if the file is younger than the monitor's `interval_seconds`, preventing duplicate alerts. Configure the directory via `state_dir` in `config.yaml`.

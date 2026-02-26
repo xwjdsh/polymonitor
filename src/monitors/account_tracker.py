@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from ..config import AccountTrackerConfig, TrackedAccount
+from typing import TYPE_CHECKING
+
 from ..notifier import Notifier
 from ..polymarket.client import PolymarketClient
+
+if TYPE_CHECKING:
+    from ..config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +20,11 @@ class AccountTracker:
         self,
         client: PolymarketClient,
         notifier: Notifier,
-        config: AccountTrackerConfig,
+        config_mgr: ConfigManager,
     ) -> None:
         self._client = client
         self._notifier = notifier
-        self._accounts = config.accounts
+        self._config_mgr = config_mgr
         # address -> last seen activity timestamp (ISO string)
         self._last_seen: dict[str, str] = {}
 
@@ -32,13 +36,13 @@ class AccountTracker:
 
     async def tick(self) -> None:
         """Run one tracking cycle."""
-        for account in self._accounts:
+        for account in self._config_mgr.config.account_tracker.accounts:
             try:
                 await self._check_account(account)
             except Exception:
                 logger.exception("Account tracker error for %s", account.label)
 
-    async def _check_account(self, account: TrackedAccount) -> None:
+    async def _check_account(self, account) -> None:
         since = self._last_seen.get(account.address)
         if since is None:
             # First time seeing this account — set last_seen to now

@@ -4,15 +4,18 @@ import asyncio
 import logging
 import signal
 
+import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from .config import load_config
+from .config import AppConfig, load_config, load_monitors_override
+from .config_manager import ConfigManager
 from .notifier import Notifier
 from .polymarket.client import PolymarketClient
 from .monitors.price_monitor import PriceMonitor
 from .monitors.position_changes import PositionChanges
 from .monitors.account_tracker import AccountTracker
 from .state import StateManager
+from .web import init_app
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,6 +28,15 @@ logger = logging.getLogger(__name__)
 
 async def run() -> None:
     config = load_config()
+    overrides = load_monitors_override(config.state_dir)
+    if overrides:
+        merged = config.model_dump()
+        for key, val in overrides.items():
+            merged[key] = val
+        config = AppConfig(**merged)
+        logger.info("Applied monitor overrides from %s/monitors.yaml", config.state_dir)
+    config_mgr = ConfigManager(config, config.state_dir)
+
     client = PolymarketClient()
     notifier = Notifier(config.telegram)
     state_mgr = StateManager(config.state_dir)
@@ -33,21 +45,19 @@ async def run() -> None:
     price_monitor = PriceMonitor(
         client=client,
         notifier=notifier,
-        wallets=config.my_wallets,
-        config=config.price_monitor,
+        config_mgr=config_mgr,
     )
 
     position_changes = PositionChanges(
         client=client,
         notifier=notifier,
-        wallets=config.my_wallets,
-        config=config.position_changes,
+        config_mgr=config_mgr,
     )
 
     account_tracker = AccountTracker(
         client=client,
         notifier=notifier,
-        config=config.account_tracker,
+        config_mgr=config_mgr,
     )
 
     # ── Restore state from CSV files ──────────────────────────
@@ -81,6 +91,7 @@ async def run() -> None:
 
     # ── Schedule jobs ─────────────────────────────────────────
     scheduler = AsyncIOScheduler()
+    config_mgr.set_scheduler(scheduler)
 
     if config.price_monitor.interval_seconds > 0:
         scheduler.add_job(
@@ -132,19 +143,33 @@ async def run() -> None:
         await account_tracker.tick()
         state_mgr.save_account_tracker(account_tracker.export_state())
 
+    # ── Start web server ──────────────────────────────────────
+    web_app = init_app(config_mgr, client)
+    uvi_config = uvicorn.Config(
+        web_app,
+        host="0.0.0.0",
+        port=config.web_port,
+        log_level="info",
+    )
+    server = uvicorn.Server(uvi_config)
+
     # ── Wait for shutdown ─────────────────────────────────────
     stop_event = asyncio.Event()
 
     def _signal_handler() -> None:
         logger.info("Shutdown signal received")
         stop_event.set()
+        server.should_exit = True
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, _signal_handler)
 
     try:
+        # Run web server alongside the scheduler
+        server_task = asyncio.create_task(server.serve())
         await stop_event.wait()
+        await server_task
     finally:
         save_state()
         scheduler.shutdown(wait=False)

@@ -8,26 +8,32 @@ my_wallets:
 price_monitor:
   interval_seconds: 60
   default_threshold: 0.05
+  # Per-market overrides — configurable via web UI market selector
   per_market: {}
-    # "conditionId":
-    #   above: 0.80        # take profit — alert when price >= 0.80
-    #   below: 0.30        # stop loss — alert when price <= 0.30
-    #   threshold: 0.10    # override default change threshold for this market
+  #   "conditionId":
+  #     above: 0.80        # take profit — alert when price >= 0.80
+  #     below: 0.30        # stop loss — alert when price <= 0.30
+  #     threshold: 0.10    # override default change threshold for this market
 
 position_changes:
   interval_seconds: 3600
   default_threshold: 0.1
+  # Per-market overrides — configurable via web UI market selector
   per_market: {}
-    # "conditionId":
-    #   threshold: 0.02    # override default change threshold for this market
+  #   "conditionId":
+  #     threshold: 0.02    # override default change threshold for this market
 
 account_tracker:
   interval_seconds: 120
+  # Tracked accounts — configurable via web UI
   accounts: []
-    # - address: "0xTrackedAccount1"
-    #   label: "Whale A"
-    # - address: "0xTrackedAccount2"
-    #   label: "Smart Trader B"
+  #   - address: "0xTrackedAccount1"
+  #     label: "Whale A"
+  #   - address: "0xTrackedAccount2"
+  #     label: "Smart Trader B"
 
 # State persistence — CSV files in this directory, stale if older than monitor's interval
 state_dir: "data"
+
+# Web UI port for config editor
+web_port: 8888
