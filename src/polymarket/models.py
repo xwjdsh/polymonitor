@@ -43,8 +43,8 @@ class Activity(BaseModel):
     slug: str = ""
     event_slug: str = Field("", alias="eventSlug")
     event_title: str = Field("", alias="eventTitle")
-    tokens: float = 0.0
-    cash: float = 0.0
+    tokens: float = Field(0.0, alias="size")
+    cash: float = Field(0.0, alias="usdcSize")
     price: float = 0.0
     timestamp: str = ""
     transaction_hash: str = Field("", alias="transactionHash")

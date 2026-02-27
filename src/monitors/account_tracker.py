@@ -83,13 +83,12 @@ class AccountTracker:
         # Group and send
         for activity in activities:
             side_emoji = "🟢 BUY" if activity.side == "BUY" else "🔴 SELL"
+            market_url = f"https://polymarket.com/event/{activity.event_slug}"
             msg = (
                 f"👁 <b>Account Activity</b>\n\n"
                 f"<b>{account.label}</b> (<code>{account.address[:10]}...</code>)\n\n"
                 f"{activity.type} | {side_emoji}\n"
-                f"📈 {activity.event_title}\n"
-                f"{activity.title} — {activity.outcome}\n"
-                f"💰 {activity.tokens:.2f} shares @ ${activity.price:.2f} (${activity.cash:.2f})\n"
-                f"🕐 {activity.timestamp}"
+                f"📈 <a href=\"{market_url}\">{activity.title}</a> — {activity.outcome}\n"
+                f"💰 {activity.tokens:.2f} shares @ ${activity.price:.2f} (${activity.cash:.2f})"
             )
             await self._notifier.send_html(msg)
