@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+import time
 from typing import TYPE_CHECKING
 
 from ..notifier import Notifier
@@ -11,6 +11,14 @@ if TYPE_CHECKING:
     from ..config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
+
+
+def _ts_to_int(ts: str) -> int:
+    """Convert a timestamp string to an integer for reliable comparison."""
+    try:
+        return int(ts)
+    except ValueError:
+        return 0
 
 
 class AccountTracker:
@@ -25,7 +33,7 @@ class AccountTracker:
         self._client = client
         self._notifier = notifier
         self._config_mgr = config_mgr
-        # address -> last seen activity timestamp (ISO string)
+        # address -> last seen activity timestamp (epoch string)
         self._last_seen: dict[str, str] = {}
 
     def export_state(self) -> dict[str, str]:
@@ -45,9 +53,9 @@ class AccountTracker:
     async def _check_account(self, account) -> None:
         since = self._last_seen.get(account.address)
         if since is None:
-            # First time seeing this account — set last_seen to now
+            # First time seeing this account — set last_seen to now (epoch)
             # so we don't flood with historical activities.
-            self._last_seen[account.address] = datetime.now(timezone.utc).isoformat()
+            self._last_seen[account.address] = str(int(time.time()))
             logger.info("Account tracker: initialized %s, skipping history", account.label)
             return
 
@@ -62,14 +70,14 @@ class AccountTracker:
             return
 
         # Filter only truly new activities (after last_seen)
-        if since:
-            activities = [a for a in activities if a.timestamp > since]
+        since_int = _ts_to_int(since)
+        activities = [a for a in activities if _ts_to_int(a.timestamp) > since_int]
 
         if not activities:
             return
 
         # Update last seen to the most recent timestamp
-        latest = max(a.timestamp for a in activities)
+        latest = max(activities, key=lambda a: _ts_to_int(a.timestamp)).timestamp
         self._last_seen[account.address] = latest
 
         # Group and send
