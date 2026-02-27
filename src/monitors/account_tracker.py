@@ -69,9 +69,12 @@ class AccountTracker:
             logger.info("Account tracker: no new activity for %s", account.label)
             return
 
-        # Filter only truly new activities (after last_seen)
+        # Filter only truly new trade activities (after last_seen)
         since_int = _ts_to_int(since)
-        activities = [a for a in activities if _ts_to_int(a.timestamp) > since_int]
+        activities = [
+            a for a in activities
+            if _ts_to_int(a.timestamp) > since_int and a.type == "TRADE"
+        ]
 
         if not activities:
             return
