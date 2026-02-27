@@ -39,7 +39,9 @@ class Notifier:
             except Exception:
                 logger.exception("Failed to send Telegram message")
 
-    async def send_html(self, message: str) -> None:
+    async def send_html(
+        self, message: str, *, disable_preview: bool = False
+    ) -> None:
         """Send an HTML-formatted message."""
         logger.info("Notification:\n%s", message)
         if self._bot and self._enabled:
@@ -48,6 +50,7 @@ class Notifier:
                     chat_id=self._config.chat_id,
                     text=message,
                     parse_mode="HTML",
+                    disable_web_page_preview=disable_preview,
                 )
             except Exception:
                 logger.exception("Failed to send Telegram message")

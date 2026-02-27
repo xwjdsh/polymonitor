@@ -91,4 +91,4 @@ class AccountTracker:
                 f"📈 <a href=\"{market_url}\">{activity.title}</a> — {activity.outcome}\n"
                 f"💰 {activity.tokens:.2f} shares @ ${activity.price:.2f} (${activity.cash:.2f})"
             )
-            await self._notifier.send_html(msg)
+            await self._notifier.send_html(msg, disable_preview=True)
