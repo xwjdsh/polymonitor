@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from ..notifier import Notifier
@@ -83,15 +84,24 @@ class AccountTracker:
         latest = max(activities, key=lambda a: _ts_to_int(a.timestamp)).timestamp
         self._last_seen[account.address] = latest
 
-        # Group and send
+        # Group activities by position (market+outcome+side) to reduce notifications
+        grouped: dict[tuple[str, str, str], list] = defaultdict(list)
         for activity in activities:
-            side_emoji = "🟢 BUY" if activity.side == "BUY" else "🔴 SELL"
-            market_url = f"https://polymarket.com/event/{activity.event_slug}"
+            key = (activity.title, activity.outcome, activity.side)
+            grouped[key].append(activity)
+
+        for (title, outcome, side), group in grouped.items():
+            total_tokens = sum(a.tokens for a in group)
+            total_cash = sum(a.cash for a in group)
+            avg_price = total_cash / total_tokens if total_tokens else 0
+            side_emoji = "🟢 BUY" if side == "BUY" else "🔴 SELL"
+            market_url = f"https://polymarket.com/event/{group[0].event_slug}"
+            count_note = f" ({len(group)} fills)" if len(group) > 1 else ""
             msg = (
                 f"👁 <b>Account Activity</b>\n\n"
                 f"<b>{account.label}</b> (<code>{account.address[:10]}...</code>)\n\n"
-                f"{activity.type} | {side_emoji}\n"
-                f"📈 <a href=\"{market_url}\">{activity.title}</a> — {activity.outcome}\n"
-                f"💰 {activity.tokens:.2f} shares @ ${activity.price:.2f} (${activity.cash:.2f})"
+                f"TRADE | {side_emoji}{count_note}\n"
+                f"📈 <a href=\"{market_url}\">{title}</a> — {outcome}\n"
+                f"💰 {total_tokens:.2f} shares @ ${avg_price:.2f} (${total_cash:.2f})"
             )
             await self._notifier.send_html(msg, disable_preview=True)
