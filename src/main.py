@@ -92,6 +92,11 @@ async def run() -> None:
     # ── Schedule jobs ─────────────────────────────────────────
     scheduler = AsyncIOScheduler()
     config_mgr.set_scheduler(scheduler)
+    config_mgr.set_monitor_ticks(
+        price_monitor_tick=price_monitor.tick,
+        position_changes_tick=position_changes.tick,
+        account_tracker_tick=account_tracker.tick,
+    )
 
     if config.price_monitor.interval_seconds > 0:
         scheduler.add_job(

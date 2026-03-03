@@ -43,6 +43,19 @@ class ConfigManager:
 
             return new_config
 
+    def set_monitor_ticks(
+        self,
+        price_monitor_tick,
+        position_changes_tick,
+        account_tracker_tick,
+    ) -> None:
+        """Store monitor tick functions so jobs can be added back at runtime."""
+        self._monitor_ticks = {
+            "price_monitor": price_monitor_tick,
+            "position_changes": position_changes_tick,
+            "account_tracker": account_tracker_tick,
+        }
+
     def _reschedule_if_changed(
         self, old: AppConfig, new: AppConfig
     ) -> None:
@@ -65,9 +78,26 @@ class ConfigManager:
             if old_interval == new_interval:
                 continue
             job = self._scheduler.get_job(job_id)
-            if job is None:
-                continue
-            job.reschedule(trigger="interval", seconds=new_interval)
-            logger.info(
-                "Rescheduled %s: %ds → %ds", job_id, old_interval, new_interval
-            )
+            if new_interval <= 0:
+                # Disable: remove the job if it exists
+                if job is not None:
+                    self._scheduler.remove_job(job_id)
+                    logger.info("Disabled %s (interval set to 0)", job_id)
+            elif job is not None:
+                # Reschedule existing job
+                job.reschedule(trigger="interval", seconds=new_interval)
+                logger.info(
+                    "Rescheduled %s: %ds → %ds", job_id, old_interval, new_interval
+                )
+            else:
+                # Re-enable: add the job back
+                tick_fn = getattr(self, "_monitor_ticks", {}).get(job_id)
+                if tick_fn:
+                    self._scheduler.add_job(
+                        tick_fn,
+                        "interval",
+                        seconds=new_interval,
+                        id=job_id,
+                        name=job_id.replace("_", " ").title(),
+                    )
+                    logger.info("Enabled %s with interval %ds", job_id, new_interval)
