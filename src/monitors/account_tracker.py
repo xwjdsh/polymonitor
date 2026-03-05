@@ -97,9 +97,10 @@ class AccountTracker:
             side_emoji = "🟢 BUY" if side == "BUY" else "🔴 SELL"
             market_url = f"https://polymarket.com/event/{group[0].event_slug}"
             count_note = f" ({len(group)} fills)" if len(group) > 1 else ""
+            profile_url = f"https://polymarket.com/profile/{account.address}"
             msg = (
                 f"👁 <b>Account Activity</b>\n\n"
-                f"<b>{account.label}</b> (<code>{account.address[:10]}...</code>)\n\n"
+                f"<a href=\"{profile_url}\"><b>{account.label}</b></a> (<code>{account.address[:10]}...</code>)\n\n"
                 f"TRADE | {side_emoji}{count_note}\n"
                 f"📈 <a href=\"{market_url}\">{title}</a> — {outcome}\n"
                 f"💰 {total_tokens:.2f} shares @ ${avg_price:.2f} (${total_cash:.2f})"
