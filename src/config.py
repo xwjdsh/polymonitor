@@ -35,6 +35,9 @@ class PositionChangeMarket(BaseModel):
 class PositionChangesConfig(BaseModel):
     interval_seconds: int = 3600
     default_threshold: float = 0.1
+    min_value: float | None = None
+    pct_up: float | None = None
+    pct_down: float | None = None
     per_market: dict[str, PositionChangeMarket] = {}
 
 

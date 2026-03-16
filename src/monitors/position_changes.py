@@ -55,6 +55,9 @@ class PositionChanges:
                 continue
             current_ids.add(pos.token_id)
             value = pos.current_value
+            if config.min_value is not None and value < config.min_value:
+                self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, pos.size)
+                continue
             size = pos.size
             prev = self._last_snapshot.get(pos.token_id)
 
@@ -73,12 +76,23 @@ class PositionChanges:
                 if market_config and market_config.threshold is not None:
                     threshold = market_config.threshold
                 if abs(change) > threshold:
-                    total_change += change
-                    entries.append((
-                        abs(change),
-                        f"• {pos.title} [{pos.outcome}]\n"
-                        f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f})",
-                    ))
+                    # Check overall P&L % filter (relative to cost basis)
+                    initial = pos.initial_value
+                    overall_pct = ((value - initial) / initial * 100) if initial else 0.0
+                    matches_up = config.pct_up is not None and overall_pct >= config.pct_up
+                    matches_down = config.pct_down is not None and overall_pct <= config.pct_down
+                    either_set = config.pct_up is not None or config.pct_down is not None
+                    if not either_set or matches_up or matches_down:
+                        total_change += change
+                        pct_str = f" / {overall_pct:+.1f}%" if initial else ""
+                        url = f"https://polymarket.com/event/{pos.event_slug}"
+                        title_link = f'<a href="{url}">{pos.title}</a>'
+                        price_str = f"/{round(pos.cur_price * 100)}" if pos.cur_price else ""
+                        entries.append((
+                            abs(change),
+                            f"• {title_link} [{pos.outcome}{price_str}]\n"
+                            f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f}{pct_str})",
+                        ))
 
             self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, size)
 
@@ -97,4 +111,4 @@ class PositionChanges:
         header = f"📋 <b>Position Changes</b>\n<code>{wallet[:10]}...</code>\n"
         body = "\n\n".join(lines)
         footer = f"\n<b>Net change:</b> ${total_change:+.2f}"
-        await self._notifier.send_html(f"{header}\n{body}\n{footer}")
+        await self._notifier.send_html(f"{header}\n{body}\n{footer}", disable_preview=True)

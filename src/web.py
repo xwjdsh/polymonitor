@@ -151,9 +151,25 @@ HTML_PAGE = """\
       <label for="pc_interval">Interval (seconds)</label>
       <input id="pc_interval" type="number" min="0">
     </div>
+  </div>
+  <div class="row">
     <div>
-      <label for="pc_threshold">Default Threshold</label>
+      <label for="pc_threshold">Min Change Value ($)</label>
       <input id="pc_threshold" type="number" step="0.01" min="0">
+    </div>
+    <div>
+      <label for="pc_min_value">Min Position Value ($)</label>
+      <input id="pc_min_value" type="number" step="0.01" min="0" placeholder="no limit">
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label for="pc_pct_up">Alert if Up ≥ (%)</label>
+      <input id="pc_pct_up" type="number" step="0.1" min="0" placeholder="no limit">
+    </div>
+    <div>
+      <label for="pc_pct_down">Alert if Down ≤ (%, e.g. -5)</label>
+      <input id="pc_pct_down" type="number" step="0.1" placeholder="no limit">
     </div>
   </div>
   <label>Per-Market Overrides</label>
@@ -236,6 +252,9 @@ function populate(cfg) {
   }
   document.getElementById('pc_interval').value = cfg.position_changes.interval_seconds;
   document.getElementById('pc_threshold').value = cfg.position_changes.default_threshold;
+  document.getElementById('pc_min_value').value = cfg.position_changes.min_value ?? '';
+  document.getElementById('pc_pct_up').value = cfg.position_changes.pct_up ?? '';
+  document.getElementById('pc_pct_down').value = cfg.position_changes.pct_down ?? '';
   document.getElementById('pc_markets').innerHTML = '';
   for (const [cid, v] of Object.entries(cfg.position_changes.per_market || {})) {
     addPcRow(cid, v.threshold);
@@ -289,6 +308,9 @@ function collect() {
     position_changes: {
       interval_seconds: Number(document.getElementById('pc_interval').value),
       default_threshold: Number(document.getElementById('pc_threshold').value),
+      min_value: document.getElementById('pc_min_value').value !== '' ? Number(document.getElementById('pc_min_value').value) : null,
+      pct_up: document.getElementById('pc_pct_up').value !== '' ? Number(document.getElementById('pc_pct_up').value) : null,
+      pct_down: document.getElementById('pc_pct_down').value !== '' ? Number(document.getElementById('pc_pct_down').value) : null,
       per_market: pcMarkets,
     },
     account_tracker: {

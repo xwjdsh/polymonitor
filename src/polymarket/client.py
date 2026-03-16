@@ -36,18 +36,28 @@ class PolymarketClient:
     async def get_positions(
         self,
         wallet: str,
-        limit: int = 500,
         size_threshold: float = 0.1,
     ) -> list[Position]:
-        data = await self._get(
-            f"{DATA_API}/positions",
-            params={
-                "user": wallet,
-                "limit": limit,
-                "sizeThreshold": size_threshold,
-            },
-        )
-        return [Position(**item) for item in data]
+        page_size = 500
+        all_positions: list[Position] = []
+        offset = 0
+        while True:
+            data = await self._get(
+                f"{DATA_API}/positions",
+                params={
+                    "user": wallet,
+                    "limit": page_size,
+                    "offset": offset,
+                    "sizeThreshold": size_threshold,
+                },
+            )
+            if not data:
+                break
+            all_positions.extend(Position(**item) for item in data)
+            if len(data) < page_size:
+                break
+            offset += page_size
+        return all_positions
 
     # ── Prices ─────────────────────────────────────────────────
 

@@ -105,19 +105,23 @@ class PriceMonitor:
                     continue
                 arrow = "⬆️ UP" if change > 0 else "⬇️ DOWN"
                 pct = change * 100
+                url = f"https://polymarket.com/event/{pos.event_slug}"
+                title_link = f'<a href="{url}">{pos.title}</a>'
                 msg = (
                     f"📊 <b>Price Alert</b> {arrow}\n\n"
                     f"<b>{pos.event_title}</b>\n"
-                    f"{pos.title} — {pos.outcome}\n\n"
+                    f"{title_link} — {pos.outcome}\n\n"
                     f"💰 {last_price:.2f} → {current_price:.2f} ({pct:+.1f}%)\n"
                     f"📦 {pos.size:.2f} shares"
                 )
-                await self._notifier.send_html(msg)
+                await self._notifier.send_html(msg, disable_preview=True)
 
     async def _check_levels(self, pos, current_price: float, market_config) -> None:
         if await self._is_market_settled(pos.condition_id):
             return
         triggered = self._triggered.setdefault(pos.token_id, set())
+        url = f"https://polymarket.com/event/{pos.event_slug}"
+        title_link = f'<a href="{url}">{pos.title}</a>'
 
         if market_config.above is not None:
             key = f"above:{market_config.above}"
@@ -126,11 +130,11 @@ class PriceMonitor:
                 msg = (
                     f"🎯 <b>Take Profit Alert</b>\n\n"
                     f"<b>{pos.event_title}</b>\n"
-                    f"{pos.title} — {pos.outcome}\n\n"
+                    f"{title_link} — {pos.outcome}\n\n"
                     f"💰 {current_price:.2f} crossed above {market_config.above:.2f}\n"
                     f"📦 {pos.size:.2f} shares"
                 )
-                await self._notifier.send_html(msg)
+                await self._notifier.send_html(msg, disable_preview=True)
             elif current_price < market_config.above:
                 triggered.discard(key)
 
@@ -141,10 +145,10 @@ class PriceMonitor:
                 msg = (
                     f"🛑 <b>Stop Loss Alert</b>\n\n"
                     f"<b>{pos.event_title}</b>\n"
-                    f"{pos.title} — {pos.outcome}\n\n"
+                    f"{title_link} — {pos.outcome}\n\n"
                     f"💰 {current_price:.2f} crossed below {market_config.below:.2f}\n"
                     f"📦 {pos.size:.2f} shares"
                 )
-                await self._notifier.send_html(msg)
+                await self._notifier.send_html(msg, disable_preview=True)
             elif current_price > market_config.below:
                 triggered.discard(key)
