@@ -90,7 +90,7 @@ class PositionChanges:
                         price_str = f"{pos.cur_price * 100:.1f}" if pos.cur_price else "?"
                         entries.append((
                             abs(change),
-                            f"• {title_link} [{pos.outcome} / {pos.size:.2f} / {price_str}]\n"
+                            f"• {title_link} [{pos.outcome} {price_str}¢ {pos.size:.2f}]\n"
                             f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f}{pct_str})",
                         ))
 
