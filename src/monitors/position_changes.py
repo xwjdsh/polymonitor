@@ -87,10 +87,10 @@ class PositionChanges:
                         pct_str = f" / {overall_pct:+.1f}%" if initial else ""
                         url = f"https://polymarket.com/event/{pos.event_slug}"
                         title_link = f'<a href="{url}">{pos.title}</a>'
-                        price_str = f"/{round(pos.cur_price * 100)}" if pos.cur_price else ""
+                        price_str = f"{pos.cur_price * 100:.1f}" if pos.cur_price else "?"
                         entries.append((
                             abs(change),
-                            f"• {title_link} [{pos.outcome}{price_str}]\n"
+                            f"• {title_link} [{pos.outcome} / {pos.size:.2f} / {price_str}]\n"
                             f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f}{pct_str})",
                         ))
 
