@@ -103,6 +103,6 @@ class AccountTracker:
                 f"<a href=\"{profile_url}\"><b>{account.label}</b></a> (<code>{account.address[:10]}...</code>)\n\n"
                 f"TRADE | {side_emoji}{count_note}\n"
                 f"📈 <a href=\"{market_url}\">{title}</a> — {outcome}\n"
-                f"💰 {total_tokens:.2f} shares @ ${avg_price:.2f} (${total_cash:.2f})"
+                f"💰 {total_tokens:.2f} shares @ {avg_price * 100:.1f}¢ (${total_cash:.2f})"
             )
             await self._notifier.send_html(msg, disable_preview=True)
