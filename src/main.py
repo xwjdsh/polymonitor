@@ -60,6 +60,8 @@ async def run() -> None:
         config_mgr=config_mgr,
     )
 
+    notifier.register_command_handler("/overlap", account_tracker.handle_overlap)
+
     # ── Restore state from CSV files ──────────────────────────
     pm_state = state_mgr.load_price_monitor(config.price_monitor.interval_seconds)
     if pm_state is not None:
@@ -134,6 +136,7 @@ async def run() -> None:
     )
 
     scheduler.start()
+    await notifier.start_polling()
     logger.info("Polymonitor started")
     await notifier.send_html("✅ <b>Polymonitor started</b>")
 
@@ -178,6 +181,7 @@ async def run() -> None:
     finally:
         save_state()
         scheduler.shutdown(wait=False)
+        await notifier.stop_polling()
         await client.close()
         logger.info("Polymonitor stopped")
 
