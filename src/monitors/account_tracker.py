@@ -25,14 +25,15 @@ class AccountTracker:
         self._client = client
         self._notifier = notifier
         self._config_mgr = config_mgr
-        # address -> set of token_ids in last known top 10
-        self._top10: dict[str, set[str]] = {}
+        # address -> {token_id -> position} for last known top 10
+        self._top10: dict[str, dict[str, Any]] = {}
 
     def export_state(self) -> dict[str, set[str]]:
-        return {addr: set(tokens) for addr, tokens in self._top10.items()}
+        return {addr: set(positions.keys()) for addr, positions in self._top10.items()}
 
     def import_state(self, top10: dict[str, set[str]]) -> None:
-        self._top10 = top10
+        # Legacy format (only token_ids) — store as empty-value dicts; no exit details available
+        self._top10 = {addr: {tid: None for tid in tids} for addr, tids in top10.items()}
 
     async def tick(self) -> None:
         """Run one tracking cycle."""
@@ -108,21 +109,20 @@ class AccountTracker:
 
         if account.address not in self._top10:
             # First run — initialize silently
-            self._top10[account.address] = top10_ids
+            self._top10[account.address] = {p.token_id: p for p in top10}
             logger.info("Account tracker: initialized top10 for %s", account.label)
             return
 
-        prev_top10_ids = self._top10[account.address]
+        prev_top10 = self._top10[account.address]
+        prev_top10_ids = set(prev_top10.keys())
         new_entries = [p for p in top10 if p.token_id not in prev_top10_ids]
+        exited_ids = prev_top10_ids - top10_ids
 
-        self._top10[account.address] = top10_ids
+        self._top10[account.address] = {p.token_id: p for p in top10}
 
-        if not new_entries:
-            logger.info("Account tracker: no new top10 positions for %s", account.label)
-            return
+        profile_url = f"https://polymarket.com/profile/{account.address}"
 
         for pos in new_entries:
-            profile_url = f"https://polymarket.com/profile/{account.address}"
             market_url = f"https://polymarket.com/event/{pos.event_slug}"
             msg = (
                 f"🏆 <b>New Top 10 Position</b>\n\n"
@@ -131,3 +131,24 @@ class AccountTracker:
                 f"💰 {pos.size:.2f} shares @ {pos.cur_price * 100:.1f}¢ (${pos.current_value:.2f})"
             )
             await self._notifier.send_html(msg, disable_preview=True)
+
+        for tid in exited_ids:
+            prev_pos = prev_top10.get(tid)
+            if prev_pos is None:
+                continue  # imported from legacy state, no details available
+            market_url = f"https://polymarket.com/event/{prev_pos.event_slug}"
+            initial_price = prev_pos.initial_value / prev_pos.size if prev_pos.size else 0
+            pnl = prev_pos.current_value - prev_pos.initial_value
+            pnl_pct = (pnl / prev_pos.initial_value * 100) if prev_pos.initial_value else 0
+            pnl_sign = "+" if pnl >= 0 else ""
+            msg = (
+                f"📤 <b>Exited Top 10</b>\n\n"
+                f"<a href=\"{profile_url}\"><b>{account.label}</b></a> (<code>{account.address[:10]}...</code>)\n\n"
+                f"📈 <a href=\"{market_url}\">{prev_pos.title}</a> — {prev_pos.outcome}\n"
+                f"💰 {prev_pos.size:.2f} shares @ {prev_pos.cur_price * 100:.1f}¢ (${prev_pos.current_value:.2f})\n"
+                f"📊 Cost basis: {initial_price * 100:.1f}¢ / ${prev_pos.initial_value:.2f} → P&L: {pnl_sign}${pnl:.2f} ({pnl_sign}{pnl_pct:.1f}%)"
+            )
+            await self._notifier.send_html(msg, disable_preview=True)
+
+        if not new_entries and not exited_ids:
+            logger.info("Account tracker: no top10 changes for %s", account.label)

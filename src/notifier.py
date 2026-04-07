@@ -100,18 +100,38 @@ class Notifier:
                 return
         await query.answer()
 
+    _MAX_LEN = 4096
+
+    @staticmethod
+    def _split(message: str, max_len: int) -> list[str]:
+        """Split a message into chunks no longer than max_len, breaking on newlines."""
+        if len(message) <= max_len:
+            return [message]
+        chunks: list[str] = []
+        while message:
+            if len(message) <= max_len:
+                chunks.append(message)
+                break
+            split_at = message.rfind("\n", 0, max_len)
+            if split_at == -1:
+                split_at = max_len
+            chunks.append(message[:split_at])
+            message = message[split_at:].lstrip("\n")
+        return chunks
+
     async def send(self, message: str) -> None:
         """Send a message. Falls back to logging if Telegram is not configured."""
         logger.info("Notification:\n%s", message)
         if self._bot and self._enabled:
-            try:
-                await self._bot.send_message(
-                    chat_id=self._config.chat_id,
-                    text=message,
-                    parse_mode="Markdown",
-                )
-            except Exception:
-                logger.exception("Failed to send Telegram message")
+            for chunk in self._split(message, self._MAX_LEN):
+                try:
+                    await self._bot.send_message(
+                        chat_id=self._config.chat_id,
+                        text=chunk,
+                        parse_mode="Markdown",
+                    )
+                except Exception:
+                    logger.exception("Failed to send Telegram message")
 
     async def send_html(
         self,
@@ -123,13 +143,17 @@ class Notifier:
         """Send an HTML-formatted message."""
         logger.info("Notification:\n%s", message)
         if self._bot and self._enabled:
-            try:
-                await self._bot.send_message(
-                    chat_id=self._config.chat_id,
-                    text=message,
-                    parse_mode="HTML",
-                    disable_web_page_preview=disable_preview,
-                    reply_markup=reply_markup,
-                )
-            except Exception:
-                logger.exception("Failed to send Telegram message")
+            chunks = self._split(message, self._MAX_LEN)
+            for i, chunk in enumerate(chunks):
+                # Only attach reply_markup to the last chunk
+                markup = reply_markup if i == len(chunks) - 1 else None
+                try:
+                    await self._bot.send_message(
+                        chat_id=self._config.chat_id,
+                        text=chunk,
+                        parse_mode="HTML",
+                        disable_web_page_preview=disable_preview,
+                        reply_markup=markup,
+                    )
+                except Exception:
+                    logger.exception("Failed to send Telegram message")
