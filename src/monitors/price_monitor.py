@@ -87,6 +87,8 @@ class PriceMonitor:
 
             # Per-market level alerts (above/below)
             market_config = config.per_market.get(pos.condition_id)
+            if market_config and market_config.ignored:
+                continue
             if market_config:
                 await self._check_levels(pos, current_price, market_config)
 

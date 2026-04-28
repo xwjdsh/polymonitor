@@ -1,12 +1,11 @@
 # Polymonitor
 
-Personal Polymarket trading monitor. Tracks your positions, alerts on price changes, summarizes P&L, and watches other accounts — all via Telegram.
+Personal Polymarket trading monitor. Tracks your positions and alerts on price changes via Telegram.
 
 ## Features
 
 - **Price Alerts** — Monitor your positions and get notified when prices move beyond a configurable threshold (default 5%), with per-market above/below levels for stop loss and take profit
 - **Position Changes** — Periodic reports of positions whose value changed beyond a configurable threshold (default $0.10), with per-market overrides and detection of closed positions
-- **Account Tracker** — Watch specific wallets (whales, smart traders) and get notified when they trade
 
 ## Setup
 
@@ -42,7 +41,6 @@ Edit `config.yaml` with your Telegram credentials, wallets, and thresholds. See 
 A config editor runs at `http://localhost:8888` (configurable via `web_port`). It lets you adjust monitor settings without editing YAML:
 
 - **Per-market overrides** — Select markets from a dropdown of your current positions and set thresholds, above/below levels
-- **Tracked accounts** — Add/remove wallets with labels
 - Changes are saved to `data/monitors.yaml` and applied immediately (scheduler intervals are rescheduled live)
 
 ## State Persistence
@@ -56,6 +54,5 @@ The service runs as a long-lived process using APScheduler to periodically:
 1. Fetch your positions from the Polymarket Data API
 2. Check current prices via the CLOB API
 3. Compare against previous values and send Telegram alerts on significant changes
-4. Poll tracked accounts for new trading activity
 
 All Polymarket endpoints used are public and require no authentication.

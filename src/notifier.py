@@ -80,7 +80,7 @@ class Notifier:
     async def _dispatch_command(self, message: Any) -> None:
         text = (message.text or "").strip()
         command = text.split()[0].lower()
-        # Strip bot username suffix (e.g. /overlap@mybot)
+        # Strip bot username suffix (e.g. /cmd@mybot)
         command = command.split("@")[0]
         handler = self._command_handlers.get(command)
         if handler:

@@ -3,10 +3,9 @@
 ## Overview
 A Python long-running service that monitors Polymarket positions and sends Telegram notifications.
 
-### Three core monitors:
+### Two core monitors:
 1. **Price Monitor** — Polls positions, alerts on price change threshold or above/below level crossings (stop loss / take profit)
 2. **Position Changes** — Periodically reports only positions whose value changed beyond a configurable threshold, with per-market overrides
-3. **Account Tracker** — Watches specified wallets for new trading activity
 
 ## Project Structure
 ```
@@ -22,8 +21,7 @@ src/
 │   └── models.py            # Pydantic models (Position, Market, Activity)
 └── monitors/
     ├── price_monitor.py     # Price change detection + above/below level alerts
-    ├── position_changes.py  # Reports only changed position values
-    └── account_tracker.py   # Tracked account activity alerts
+    └── position_changes.py  # Reports only changed position values
 data/                        # State CSV files (gitignored, created at runtime)
 ```
 
@@ -45,7 +43,7 @@ uv venv && uv pip install -e "."
 ```
 
 ### Configuration
-- `config.yaml` — all settings (Telegram credentials, wallets, thresholds, intervals, tracked accounts)
+- `config.yaml` — all settings (Telegram credentials, wallets, thresholds, intervals)
 - `config.example.yaml` — template to copy from
 - Web UI at `http://localhost:<web_port>` — edit monitor settings with market selector dropdowns (populated from current positions) and dynamic forms; no raw YAML editing needed
 - Runtime config changes saved to `data/monitors.yaml` and applied on restart

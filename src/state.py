@@ -134,27 +134,3 @@ class StateManager:
         logger.debug("Loaded position changes state from %s", path)
         return snapshot
 
-    # ── Account Tracker ────────────────────────────────────────
-
-    def save_account_tracker(self, top10: dict[str, set[str]]) -> None:
-        rows = [
-            [addr, "|".join(sorted(tokens))]
-            for addr, tokens in sorted(top10.items())
-        ]
-        self._atomic_write("account_tracker", ["address", "top10_tokens"], rows)
-
-    def load_account_tracker(self, interval_seconds: int) -> dict[str, set[str]] | None:
-        path = self._find_latest("account_tracker")
-        if path is None or not self._is_fresh(path, interval_seconds):
-            return None
-        top10: dict[str, set[str]] = {}
-        with open(path, newline="") as f:
-            reader = csv.DictReader(f)
-            if "top10_tokens" not in (reader.fieldnames or []):
-                logger.debug("account_tracker state file has old format, ignoring")
-                return None
-            for row in reader:
-                tokens_raw = row.get("top10_tokens", "")
-                top10[row["address"]] = set(tokens_raw.split("|")) if tokens_raw else set()
-        logger.debug("Loaded account tracker state from %s", path)
-        return top10

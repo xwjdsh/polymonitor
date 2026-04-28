@@ -25,7 +25,7 @@ def init_app(config_mgr: ConfigManager, client: PolymarketClient) -> FastAPI:
     return app
 
 
-_MONITOR_KEYS = ("price_monitor", "position_changes", "account_tracker")
+_MONITOR_KEYS = ("price_monitor", "position_changes")
 
 
 @app.get("/api/config")
@@ -114,14 +114,10 @@ HTML_PAGE = """\
   .add-btn { background: transparent; border: 1px dashed var(--border); color: var(--muted); padding: 0.4rem 1rem; font-size: 0.85rem; margin-top: 0.25rem; }
   .add-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
   .sub-label { font-size: 0.7rem; color: var(--muted); text-align: center; }
+  .ignore-field { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 2px; }
+  .ignore-field input[type=checkbox] { width: auto; margin-bottom: 0; accent-color: var(--accent); width: 1.1rem; height: 1.1rem; cursor: pointer; }
   .field-group { display: flex; flex-direction: column; flex: 1; min-width: 0; }
   .field-group input, .field-group select { margin-bottom: 0; }
-  .account-row { display: flex; gap: 0.5rem; align-items: flex-end; margin-bottom: 0.5rem; }
-  .account-row input { margin-bottom: 0; }
-  .account-row .addr-field { flex: 3; }
-  .account-row .label-field { flex: 1; }
-  .account-row .remove-btn { flex: 0 0 auto; background: var(--danger); padding: 0.5rem 0.7rem; font-size: 0.8rem; border-radius: 4px; }
-  .account-row .remove-btn:hover { background: #b91c1c; }
 </style>
 </head>
 <body>
@@ -177,15 +173,6 @@ HTML_PAGE = """\
   <button class="add-btn" onclick="addPcRow()">+ Add market</button>
 </section>
 
-<section class="card">
-  <h2>Account Tracker</h2>
-  <label for="at_interval">Interval (seconds)</label>
-  <input id="at_interval" type="number" min="0" style="max-width:200px">
-  <label>Tracked Accounts</label>
-  <div id="at_accounts"></div>
-  <button class="add-btn" onclick="addAtRow()">+ Add account</button>
-</section>
-
 <div class="actions">
   <button id="saveBtn" onclick="saveConfig()">Save Config</button>
   <button onclick="loadConfig()" style="background:var(--border)">Reload</button>
@@ -208,7 +195,7 @@ function marketOptionHtml(selected) {
   return html;
 }
 
-function addPmRow(conditionId, above, below, threshold) {
+function addPmRow(conditionId, above, below, threshold, ignored) {
   const container = document.getElementById('pm_markets');
   const row = document.createElement('div');
   row.className = 'override-row';
@@ -217,6 +204,7 @@ function addPmRow(conditionId, above, below, threshold) {
     '<div class="field-group"><div class="sub-label">Above</div><input type="number" step="0.01" min="0" max="1" placeholder="-" value="' + (above != null ? above : '') + '"></div>' +
     '<div class="field-group"><div class="sub-label">Below</div><input type="number" step="0.01" min="0" max="1" placeholder="-" value="' + (below != null ? below : '') + '"></div>' +
     '<div class="field-group"><div class="sub-label">Threshold</div><input type="number" step="0.01" min="0" max="1" placeholder="-" value="' + (threshold != null ? threshold : '') + '"></div>' +
+    '<div class="ignore-field"><div class="sub-label">Ignore</div><input type="checkbox"' + (ignored ? ' checked' : '') + '></div>' +
     '<button class="remove-btn" onclick="this.parentElement.remove()">X</button>';
   container.appendChild(row);
 }
@@ -232,23 +220,12 @@ function addPcRow(conditionId, threshold) {
   container.appendChild(row);
 }
 
-function addAtRow(address, label) {
-  const container = document.getElementById('at_accounts');
-  const row = document.createElement('div');
-  row.className = 'account-row';
-  row.innerHTML =
-    '<div class="field-group addr-field"><div class="sub-label">Address</div><input type="text" placeholder="0x..." value="' + (address || '') + '"></div>' +
-    '<div class="field-group label-field"><div class="sub-label">Label</div><input type="text" placeholder="Name" value="' + (label || '') + '"></div>' +
-    '<button class="remove-btn" onclick="this.parentElement.remove()">X</button>';
-  container.appendChild(row);
-}
-
 function populate(cfg) {
   document.getElementById('pm_interval').value = cfg.price_monitor.interval_seconds;
   document.getElementById('pm_threshold').value = cfg.price_monitor.default_threshold;
   document.getElementById('pm_markets').innerHTML = '';
   for (const [cid, v] of Object.entries(cfg.price_monitor.per_market || {})) {
-    addPmRow(cid, v.above, v.below, v.threshold);
+    addPmRow(cid, v.above, v.below, v.threshold, v.ignored);
   }
   document.getElementById('pc_interval').value = cfg.position_changes.interval_seconds;
   document.getElementById('pc_threshold').value = cfg.position_changes.default_threshold;
@@ -259,24 +236,21 @@ function populate(cfg) {
   for (const [cid, v] of Object.entries(cfg.position_changes.per_market || {})) {
     addPcRow(cid, v.threshold);
   }
-  document.getElementById('at_interval').value = cfg.account_tracker.interval_seconds;
-  document.getElementById('at_accounts').innerHTML = '';
-  for (const a of cfg.account_tracker.accounts || []) {
-    addAtRow(a.address, a.label);
-  }
 }
 
 function collect() {
   const pmMarkets = {};
   for (const row of document.getElementById('pm_markets').children) {
     const sel = row.querySelector('select');
-    const inputs = row.querySelectorAll('input');
+    const inputs = row.querySelectorAll('input[type=number]');
+    const checkbox = row.querySelector('input[type=checkbox]');
     const cid = sel.value;
     if (!cid) continue;
     const entry = {};
     if (inputs[0].value !== '') entry.above = Number(inputs[0].value);
     if (inputs[1].value !== '') entry.below = Number(inputs[1].value);
     if (inputs[2].value !== '') entry.threshold = Number(inputs[2].value);
+    if (checkbox && checkbox.checked) entry.ignored = true;
     pmMarkets[cid] = entry;
   }
 
@@ -289,14 +263,6 @@ function collect() {
     const entry = {};
     if (inputs[0].value !== '') entry.threshold = Number(inputs[0].value);
     pcMarkets[cid] = entry;
-  }
-
-  const accounts = [];
-  for (const row of document.getElementById('at_accounts').children) {
-    const inputs = row.querySelectorAll('input');
-    const address = inputs[0].value.trim();
-    const label = inputs[1].value.trim();
-    if (address) accounts.push({address, label});
   }
 
   return {
@@ -312,10 +278,6 @@ function collect() {
       pct_up: document.getElementById('pc_pct_up').value !== '' ? Number(document.getElementById('pc_pct_up').value) : null,
       pct_down: document.getElementById('pc_pct_down').value !== '' ? Number(document.getElementById('pc_pct_down').value) : null,
       per_market: pcMarkets,
-    },
-    account_tracker: {
-      interval_seconds: Number(document.getElementById('at_interval').value),
-      accounts: accounts,
     },
   };
 }

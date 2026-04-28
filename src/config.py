@@ -11,15 +11,11 @@ class TelegramConfig(BaseModel):
     chat_id: str = ""
 
 
-class TrackedAccount(BaseModel):
-    address: str
-    label: str
-
-
 class PriceAlert(BaseModel):
     above: float | None = None
     below: float | None = None
     threshold: float | None = None
+    ignored: bool = False
 
 
 class PriceMonitorConfig(BaseModel):
@@ -41,17 +37,11 @@ class PositionChangesConfig(BaseModel):
     per_market: dict[str, PositionChangeMarket] = {}
 
 
-class AccountTrackerConfig(BaseModel):
-    interval_seconds: int = 120
-    accounts: list[TrackedAccount] = []
-
-
 class AppConfig(BaseModel):
     telegram: TelegramConfig = TelegramConfig()
     my_wallets: list[str] = []
     price_monitor: PriceMonitorConfig = PriceMonitorConfig()
     position_changes: PositionChangesConfig = PositionChangesConfig()
-    account_tracker: AccountTrackerConfig = AccountTrackerConfig()
     state_dir: str = "data"
     web_port: int = 8888
 
@@ -68,7 +58,7 @@ def load_config(config_path: str | Path | None = None) -> AppConfig:
     return AppConfig(**raw)
 
 
-_MONITOR_KEYS = ("price_monitor", "position_changes", "account_tracker")
+_MONITOR_KEYS = ("price_monitor", "position_changes")
 
 
 def load_monitors_override(state_dir: str | Path) -> dict:

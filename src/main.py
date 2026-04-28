@@ -13,7 +13,6 @@ from .notifier import Notifier
 from .polymarket.client import PolymarketClient
 from .monitors.price_monitor import PriceMonitor
 from .monitors.position_changes import PositionChanges
-from .monitors.account_tracker import AccountTracker
 from .state import StateManager
 from .web import init_app
 
@@ -54,14 +53,6 @@ async def run() -> None:
         config_mgr=config_mgr,
     )
 
-    account_tracker = AccountTracker(
-        client=client,
-        notifier=notifier,
-        config_mgr=config_mgr,
-    )
-
-    notifier.register_command_handler("/overlap", account_tracker.handle_overlap)
-
     # ── Restore state from CSV files ──────────────────────────
     pm_state = state_mgr.load_price_monitor(config.price_monitor.interval_seconds)
     if pm_state is not None:
@@ -70,10 +61,6 @@ async def run() -> None:
     pc_state = state_mgr.load_position_changes(config.position_changes.interval_seconds)
     if pc_state is not None:
         position_changes.import_state(pc_state)
-
-    at_state = state_mgr.load_account_tracker(config.account_tracker.interval_seconds)
-    if at_state is not None:
-        account_tracker.import_state(at_state)
 
     # ── Save state helper ─────────────────────────────────────
     def save_state() -> None:
@@ -86,18 +73,12 @@ async def run() -> None:
             state_mgr.save_position_changes(position_changes.export_state())
         except Exception:
             logger.exception("Failed to save position changes state")
-        try:
-            state_mgr.save_account_tracker(account_tracker.export_state())
-        except Exception:
-            logger.exception("Failed to save account tracker state")
-
     # ── Schedule jobs ─────────────────────────────────────────
     scheduler = AsyncIOScheduler()
     config_mgr.set_scheduler(scheduler)
     config_mgr.set_monitor_ticks(
         price_monitor_tick=price_monitor.tick,
         position_changes_tick=position_changes.tick,
-        account_tracker_tick=account_tracker.tick,
     )
 
     if config.price_monitor.interval_seconds > 0:
@@ -116,15 +97,6 @@ async def run() -> None:
             seconds=config.position_changes.interval_seconds,
             id="position_changes",
             name="Position Changes",
-        )
-
-    if config.account_tracker.accounts and config.account_tracker.interval_seconds > 0:
-        scheduler.add_job(
-            account_tracker.tick,
-            "interval",
-            seconds=config.account_tracker.interval_seconds,
-            id="account_tracker",
-            name="Account Tracker",
         )
 
     scheduler.add_job(
@@ -147,10 +119,6 @@ async def run() -> None:
     if config.position_changes.interval_seconds > 0 and pc_state is None:
         await position_changes.tick()
         state_mgr.save_position_changes(position_changes.export_state())
-    if config.account_tracker.accounts and config.account_tracker.interval_seconds > 0 and at_state is None:
-        await account_tracker.tick()
-        state_mgr.save_account_tracker(account_tracker.export_state())
-
     # ── Start web server ──────────────────────────────────────
     web_app = init_app(config_mgr, client)
     uvi_config = uvicorn.Config(

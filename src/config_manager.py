@@ -47,13 +47,11 @@ class ConfigManager:
         self,
         price_monitor_tick,
         position_changes_tick,
-        account_tracker_tick,
     ) -> None:
         """Store monitor tick functions so jobs can be added back at runtime."""
         self._monitor_ticks = {
             "price_monitor": price_monitor_tick,
             "position_changes": position_changes_tick,
-            "account_tracker": account_tracker_tick,
         }
 
     def _reschedule_if_changed(
@@ -67,10 +65,6 @@ class ConfigManager:
             "position_changes": (
                 old.position_changes.interval_seconds,
                 new.position_changes.interval_seconds,
-            ),
-            "account_tracker": (
-                old.account_tracker.interval_seconds,
-                new.account_tracker.interval_seconds,
             ),
         }
         assert self._scheduler is not None
