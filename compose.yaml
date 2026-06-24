@@ -1,0 +1,13 @@
+services:
+  polymonitor:
+    build: .
+    image: ghcr.io/wensun/polymonitor:main
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - polymonitor-data:/app/data
+
+volumes:
+  polymonitor-data:

@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir .
 FROM python:3.12-slim
 
 WORKDIR /app
+ENV PYTHONPATH=/app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin/polymonitor /usr/local/bin/polymonitor
 COPY src/ src/
