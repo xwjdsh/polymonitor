@@ -46,8 +46,8 @@ class PositionChanges:
 
         config = self._config_mgr.config.position_changes
         current_ids: set[str] = set()
-        # (abs_change, line) tuples for sorting
-        entries: list[tuple[float, str]] = []
+        # (condition_id, change, abs_change, line) tuples
+        entries: list[tuple[str, float, float, str]] = []
         total_change = 0.0
 
         for pos in positions:
@@ -83,12 +83,13 @@ class PositionChanges:
                     matches_down = config.pct_down is not None and overall_pct <= config.pct_down
                     either_set = config.pct_up is not None or config.pct_down is not None
                     if not either_set or matches_up or matches_down:
-                        total_change += change
                         pct_str = f" / {overall_pct:+.1f}%" if initial else ""
                         url = f"https://polymarket.com/event/{pos.event_slug}"
                         title_link = f'<a href="{url}">{pos.title}</a>'
                         price_str = f"{pos.cur_price * 100:.1f}" if pos.cur_price else "?"
                         entries.append((
+                            pos.condition_id,
+                            change,
                             abs(change),
                             f"• {title_link} [{pos.outcome} {price_str}¢ {pos.size:.2f}]\n"
                             f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f}{pct_str})",
@@ -104,9 +105,25 @@ class PositionChanges:
         if not entries:
             return
 
+        # Filter out split positions: same market (condition_id) with net change ≈ $0
+        from collections import defaultdict
+        net_by_condition: dict[str, float] = defaultdict(float)
+        for cid, change, _, _ in entries:
+            net_by_condition[cid] += change
+        entries = [
+            e for e in entries
+            if abs(net_by_condition[e[0]]) > 0.01
+        ]
+
+        if not entries:
+            return
+
+        for _, change, _, _ in entries:
+            total_change += change
+
         # Sort by absolute change descending
-        entries.sort(key=lambda e: e[0], reverse=True)
-        lines = [line for _, line in entries]
+        entries.sort(key=lambda e: e[2], reverse=True)
+        lines = [line for _, _, _, line in entries]
 
         header = f"📋 <b>Position Changes</b>\n<code>{wallet[:10]}...</code>\n"
         body = "\n\n".join(lines)
