@@ -24,13 +24,13 @@ class PositionChanges:
         self._client = client
         self._notifier = notifier
         self._config_mgr = config_mgr
-        # token_id -> (title, outcome, last_value, size)
-        self._last_snapshot: dict[str, tuple[str, str, float, float]] = {}
+        # token_id -> (title, outcome, last_value, size, last_price)
+        self._last_snapshot: dict[str, tuple[str, str, float, float, float]] = {}
 
-    def export_state(self) -> dict[str, tuple[str, str, float, float]]:
+    def export_state(self) -> dict[str, tuple[str, str, float, float, float]]:
         return dict(self._last_snapshot)
 
-    def import_state(self, last_snapshot: dict[str, tuple[str, str, float, float]]) -> None:
+    def import_state(self, last_snapshot: dict[str, tuple[str, str, float, float, float]]) -> None:
         self._last_snapshot = last_snapshot
 
     async def tick(self) -> None:
@@ -58,20 +58,21 @@ class PositionChanges:
                 continue
             current_ids.add(pos.token_id)
             value = pos.current_value
+            cur_price = pos.cur_price or 0.0
             if config.min_value is not None and value < config.min_value:
-                self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, pos.size)
+                self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, pos.size, cur_price)
                 continue
             size = pos.size
             prev = self._last_snapshot.get(pos.token_id)
 
             if prev is not None:
-                _, _, prev_value, prev_size = prev
+                _, _, prev_value, prev_size, prev_price = prev
                 if prev_size > 0 and size != prev_size:
                     logger.debug(
                         "Skipping %s [%s]: quantity changed %.4f → %.4f (buy/sell)",
                         pos.title, pos.outcome, prev_size, size,
                     )
-                    self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, size)
+                    self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, size, cur_price)
                     continue
                 change = value - prev_value
                 threshold = config.default_threshold
@@ -89,16 +90,17 @@ class PositionChanges:
                         pct_str = f" / {overall_pct:+.1f}%" if initial else ""
                         url = f"https://polymarket.com/event/{pos.event_slug}"
                         title_link = f'<a href="{url}">{pos.title}</a>'
-                        price_str = f"{pos.cur_price * 100:.1f}" if pos.cur_price else "?"
+                        price_str = f"{cur_price * 100:.1f}" if cur_price else "?"
+                        prev_price_str = f"{prev_price * 100:.1f}" if prev_price else "?"
                         entries.append((
                             pos.condition_id,
                             change,
                             abs(change),
-                            f"• {title_link} [{pos.outcome} {price_str}¢ {pos.size:.2f}]\n"
+                            f"• {title_link} [{pos.outcome} {prev_price_str}¢ → {price_str}¢ {pos.size:.2f}]\n"
                             f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f}{pct_str})",
                         ))
 
-            self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, size)
+            self._last_snapshot[pos.token_id] = (pos.title, pos.outcome, value, size, cur_price)
 
         # Remove closed positions from snapshot without notifying
         for token_id in list(self._last_snapshot):
