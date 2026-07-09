@@ -71,6 +71,20 @@ class PolymarketClient:
         data = await self._get(f"{CLOB_API}/midpoint", params={"token_id": token_id})
         return float(data.get("mid", 0.0))
 
+    async def get_midpoints(self, token_ids: list[str]) -> dict[str, float]:
+        """Fetch midpoint prices for multiple tokens in a single request."""
+        if not token_ids:
+            return {}
+        resp = await self._http.post(
+            f"{CLOB_API}/midpoints",
+            json=[{"token_id": tid} for tid in token_ids],
+        )
+        if resp.status_code == 429:
+            raise RateLimitError(f"Rate limited by Polymarket API ({CLOB_API}/midpoints)")
+        resp.raise_for_status()
+        data = resp.json()
+        return {tid: float(price) for tid, price in data.items()}
+
     async def get_price(self, token_id: str, side: str = "buy") -> float:
         data = await self._get(
             f"{CLOB_API}/price",

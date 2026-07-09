@@ -68,8 +68,14 @@ class PriceMonitor:
             return
 
         config = self._config_mgr.config.price_monitor
-        token_count = sum(1 for p in positions if p.token_id)
-        logger.info("Price monitor: fetching prices for %d tokens", token_count)
+
+        # Batch-fetch all midpoints in a single request
+        token_ids = [
+            p.token_id for p in positions
+            if p.token_id and p.condition_id not in self._inactive_markets
+        ]
+        logger.info("Price monitor: fetching prices for %d tokens", len(token_ids))
+        midpoints = await self._client.get_midpoints(token_ids)
 
         for pos in positions:
             if not pos.token_id:
@@ -79,12 +85,9 @@ class PriceMonitor:
             if pos.condition_id in self._inactive_markets:
                 continue
 
-            try:
-                current_price = await self._client.get_midpoint(pos.token_id)
-            except RateLimitError:
-                raise
-            except Exception:
-                logger.warning("Failed to get price for %s", pos.token_id)
+            current_price = midpoints.get(pos.token_id)
+            if current_price is None:
+                logger.warning("No price returned for %s", pos.token_id)
                 continue
 
             last_price = self._last_prices.get(pos.token_id)
