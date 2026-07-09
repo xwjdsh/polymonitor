@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from ..notifier import Notifier
-from ..polymarket.client import PolymarketClient
+from ..polymarket.client import PolymarketClient, RateLimitError
 
 if TYPE_CHECKING:
     from ..config_manager import ConfigManager
@@ -42,6 +42,9 @@ class PriceMonitor:
         for wallet in self._config_mgr.config.my_wallets:
             try:
                 await self._check_wallet(wallet)
+            except RateLimitError as exc:
+                logger.error("%s", exc)
+                await self._notifier.send_html(f"⚠️ <b>Rate Limited</b>\nPolymarket API 限流，价格监控暂停本轮。")
             except Exception:
                 logger.exception("Price monitor error for wallet %s", wallet)
 
@@ -78,6 +81,8 @@ class PriceMonitor:
 
             try:
                 current_price = await self._client.get_midpoint(pos.token_id)
+            except RateLimitError:
+                raise
             except Exception:
                 logger.warning("Failed to get price for %s", pos.token_id)
                 continue

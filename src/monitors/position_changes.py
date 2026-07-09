@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from ..notifier import Notifier
-from ..polymarket.client import PolymarketClient
+from ..polymarket.client import PolymarketClient, RateLimitError
 
 if TYPE_CHECKING:
     from ..config_manager import ConfigManager
@@ -37,6 +37,9 @@ class PositionChanges:
         for wallet in self._config_mgr.config.my_wallets:
             try:
                 await self._check_wallet(wallet)
+            except RateLimitError as exc:
+                logger.error("%s", exc)
+                await self._notifier.send_html(f"⚠️ <b>Rate Limited</b>\nPolymarket API 限流，持仓变化监控暂停本轮。")
             except Exception:
                 logger.exception("Position changes error for wallet %s", wallet)
 

@@ -14,6 +14,10 @@ GAMMA_API = "https://gamma-api.polymarket.com"
 CLOB_API = "https://clob.polymarket.com"
 
 
+class RateLimitError(Exception):
+    """Raised when Polymarket API returns HTTP 429."""
+
+
 class PolymarketClient:
     """Async client for Polymarket public APIs."""
 
@@ -28,6 +32,8 @@ class PolymarketClient:
 
     async def _get(self, url: str, params: dict[str, Any] | None = None) -> Any:
         resp = await self._http.get(url, params=params)
+        if resp.status_code == 429:
+            raise RateLimitError(f"Rate limited by Polymarket API ({url})")
         resp.raise_for_status()
         return resp.json()
 
