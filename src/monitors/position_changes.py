@@ -96,8 +96,7 @@ class PositionChanges:
                             pos.condition_id,
                             change,
                             abs(change),
-                            f"• {title_link} [{pos.outcome} {pos.size:.2f}]\n"
-                            f"  {prev_price_str}¢ → {price_str}¢\n"
+                            f"• {title_link} [{pos.outcome} {prev_price_str}¢ → {price_str}¢ {pos.size:.2f}]\n"
                             f"  ${prev_value:.2f} → ${value:.2f} ({change:+.2f}{pct_str})",
                         ))
 
