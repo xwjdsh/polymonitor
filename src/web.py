@@ -250,7 +250,6 @@ HTML_PAGE = """\
 
 <div class="actions">
   <button id="saveBtn" onclick="saveConfig()">Save Config</button>
-  <button onclick="loadConfig()" style="background:var(--border)">Reload</button>
   <span id="status"></span>
 </div>
 </div><!-- #tab-config -->
