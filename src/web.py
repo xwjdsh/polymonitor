@@ -120,7 +120,7 @@ async def get_daily_changes():
             "change": round(change, 2),
         })
 
-    changes.sort(key=lambda x: abs(x["change"]), reverse=True)
+    changes.sort(key=lambda x: x["change"], reverse=True)
     return {"changes": changes}
 
 
