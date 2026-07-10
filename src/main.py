@@ -25,6 +25,26 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
+async def _take_daily_baseline(
+    client: PolymarketClient,
+    config_mgr: ConfigManager,
+    state_mgr: StateManager,
+) -> None:
+    """Fetch current positions and save as today's daily baseline."""
+    snapshot: dict[str, tuple[str, str, float, float]] = {}
+    for wallet in config_mgr.config.my_wallets:
+        try:
+            positions = await client.get_positions(wallet)
+            for p in positions:
+                if p.token_id and p.token_id not in snapshot:
+                    snapshot[p.token_id] = (p.title, p.outcome, p.current_value, p.cur_price or 0.0)
+        except Exception:
+            logger.exception("Failed to fetch positions for daily baseline (wallet %s)", wallet)
+    if snapshot:
+        state_mgr.save_daily_baseline(snapshot)
+        logger.info("Daily baseline saved (%d positions)", len(snapshot))
+
+
 async def run() -> None:
     config = load_config()
     overrides = load_monitors_override(config.state_dir)
@@ -107,6 +127,15 @@ async def run() -> None:
         name="Save State",
     )
 
+    scheduler.add_job(
+        lambda: asyncio.create_task(_take_daily_baseline(client, config_mgr, state_mgr)),
+        "cron",
+        hour=0,
+        minute=0,
+        id="daily_baseline",
+        name="Daily Baseline",
+    )
+
     scheduler.start()
     await notifier.start_polling()
     logger.info("Polymonitor started")
@@ -119,8 +148,12 @@ async def run() -> None:
     if config.position_changes.interval_seconds > 0 and pc_state is None:
         await position_changes.tick()
         state_mgr.save_position_changes(position_changes.export_state())
+    # ── Take daily baseline if not yet done today ─────────────
+    if state_mgr.load_daily_baseline() is None:
+        await _take_daily_baseline(client, config_mgr, state_mgr)
+
     # ── Start web server ──────────────────────────────────────
-    web_app = init_app(config_mgr, client)
+    web_app = init_app(config_mgr, client, state_mgr)
     uvi_config = uvicorn.Config(
         web_app,
         host="0.0.0.0",

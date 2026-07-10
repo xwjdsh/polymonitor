@@ -136,3 +136,53 @@ class StateManager:
         logger.debug("Loaded position changes state from %s", path)
         return snapshot
 
+    # ── Daily Baseline ─────────────────────────────────────────
+
+    def save_daily_baseline(
+        self,
+        snapshot: dict[str, tuple[str, str, float, float]],
+    ) -> None:
+        """Save today's position values as baseline for daily change comparison."""
+        self._ensure_dir()
+        today = datetime.now(timezone.utc).strftime("%Y%m%d")
+        # Remove previous days' baseline files
+        for f in self._dir.glob("daily_baseline_*.csv"):
+            if f.stem != f"daily_baseline_{today}":
+                f.unlink()
+        target = self._dir / f"daily_baseline_{today}.csv"
+        fd, tmp_path = tempfile.mkstemp(dir=self._dir, suffix=".csv.tmp")
+        try:
+            with os.fdopen(fd, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["token_id", "title", "outcome", "value", "price"])
+                for token_id in sorted(snapshot):
+                    title, outcome, value, price = snapshot[token_id]
+                    writer.writerow([token_id, title, outcome, str(value), str(price)])
+            os.replace(tmp_path, target)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+        logger.debug("Saved daily baseline to %s", target)
+
+    def load_daily_baseline(self) -> dict[str, tuple[str, str, float, float]] | None:
+        """Load today's position baseline. Returns None if not yet taken."""
+        today = datetime.now(timezone.utc).strftime("%Y%m%d")
+        path = self._dir / f"daily_baseline_{today}.csv"
+        if not path.exists():
+            return None
+        snapshot: dict[str, tuple[str, str, float, float]] = {}
+        with open(path, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                snapshot[row["token_id"]] = (
+                    row["title"],
+                    row["outcome"],
+                    float(row["value"]),
+                    float(row.get("price", 0)),
+                )
+        logger.debug("Loaded daily baseline from %s", path)
+        return snapshot
+

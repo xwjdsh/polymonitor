@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 if TYPE_CHECKING:
     from .config_manager import ConfigManager
     from .polymarket.client import PolymarketClient
+    from .state import StateManager
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +17,14 @@ app = FastAPI(title="Polymonitor Config")
 
 _config_mgr: ConfigManager | None = None
 _client: PolymarketClient | None = None
+_state_mgr: StateManager | None = None
 
 
-def init_app(config_mgr: ConfigManager, client: PolymarketClient) -> FastAPI:
-    global _config_mgr, _client
+def init_app(config_mgr: ConfigManager, client: PolymarketClient, state_mgr: StateManager) -> FastAPI:
+    global _config_mgr, _client, _state_mgr
     _config_mgr = config_mgr
     _client = client
+    _state_mgr = state_mgr
     return app
 
 
@@ -74,6 +77,53 @@ async def get_positions():
     return list(seen.values())
 
 
+@app.get("/api/daily-changes")
+async def get_daily_changes():
+    assert _state_mgr is not None and _config_mgr is not None and _client is not None
+    baseline = _state_mgr.load_daily_baseline()
+    if baseline is None:
+        return {"changes": []}
+
+    current: dict[str, dict] = {}
+    for wallet in _config_mgr.config.my_wallets:
+        try:
+            positions = await _client.get_positions(wallet)
+            for p in positions:
+                if p.token_id and p.token_id not in current:
+                    current[p.token_id] = {
+                        "title": p.title,
+                        "outcome": p.outcome,
+                        "value": p.current_value,
+                        "price": p.cur_price or 0.0,
+                        "event_slug": p.event_slug,
+                    }
+        except Exception:
+            logger.exception("Failed to fetch positions for daily changes")
+
+    changes = []
+    for token_id, cur in current.items():
+        base = baseline.get(token_id)
+        if base is None:
+            continue
+        _, _, base_value, base_price = base
+        change = cur["value"] - base_value
+        if abs(change) < 0.01:
+            continue
+        changes.append({
+            "title": cur["title"],
+            "outcome": cur["outcome"],
+            "event_slug": cur["event_slug"],
+            "base_price": round(base_price * 100, 1),
+            "cur_price": round(cur["price"] * 100, 1),
+            "base_value": round(base_value, 2),
+            "cur_value": round(cur["value"], 2),
+            "change": round(change, 2),
+        })
+
+    changes.sort(key=lambda x: abs(x["change"]), reverse=True)
+    return {"changes": changes}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     return HTML_PAGE
@@ -85,12 +135,12 @@ HTML_PAGE = """\
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Polymonitor Config</title>
+<title>Polymonitor</title>
 <style>
   :root { --bg: #0f1117; --card: #1a1d27; --border: #2a2d3a; --text: #e1e4eb; --muted: #8b8fa3; --accent: #6366f1; --accent-hover: #818cf8; --success: #22c55e; --error: #ef4444; --danger: #dc2626; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 800px; margin: 0 auto; }
-  h1 { font-size: 1.5rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin-bottom: 1rem; }
   h2 { font-size: 1.1rem; color: var(--muted); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
   label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.25rem; }
@@ -118,11 +168,36 @@ HTML_PAGE = """\
   .ignore-field input[type=checkbox] { width: auto; margin-bottom: 0; accent-color: var(--accent); width: 1.1rem; height: 1.1rem; cursor: pointer; }
   .field-group { display: flex; flex-direction: column; flex: 1; min-width: 0; }
   .field-group input, .field-group select { margin-bottom: 0; }
+  /* Tabs */
+  .tabs { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+  .tab-btn { background: transparent; color: var(--muted); border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 0.5rem 1.25rem; font-size: 0.95rem; cursor: pointer; margin-bottom: -1px; }
+  .tab-btn:hover { color: var(--text); background: transparent; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  /* Daily changes */
+  .change-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 0.75rem 0; border-bottom: 1px solid var(--border); gap: 1rem; }
+  .change-item:last-child { border-bottom: none; }
+  .change-market { flex: 1; min-width: 0; }
+  .change-market a { color: var(--text); text-decoration: none; font-weight: 500; }
+  .change-market a:hover { color: var(--accent); }
+  .change-outcome { font-size: 0.82rem; color: var(--muted); margin-top: 0.1rem; }
+  .change-value { text-align: right; white-space: nowrap; }
+  .change-delta { font-weight: 600; font-size: 1rem; }
+  .change-detail { font-size: 0.8rem; color: var(--muted); margin-top: 0.1rem; }
+  .pos { color: var(--success); }
+  .neg { color: var(--error); }
+  .net-summary { font-size: 0.95rem; padding: 0.6rem 0; margin-bottom: 0.5rem; color: var(--muted); }
+  .net-summary strong { color: var(--text); }
+  #changes-empty { color: var(--muted); padding: 1rem 0; }
 </style>
 </head>
 <body>
-<h1>Polymonitor Config</h1>
+<h1>Polymonitor</h1>
+<nav class="tabs">
+  <button class="tab-btn active" onclick="showTab('config')">Config</button>
+  <button class="tab-btn" onclick="showTab('changes')">Today's Changes</button>
+</nav>
 
+<div id="tab-config">
 <section class="card">
   <h2>Price Monitor</h2>
   <div class="row">
@@ -177,6 +252,19 @@ HTML_PAGE = """\
   <button id="saveBtn" onclick="saveConfig()">Save Config</button>
   <button onclick="loadConfig()" style="background:var(--border)">Reload</button>
   <span id="status"></span>
+</div>
+</div><!-- #tab-config -->
+
+<div id="tab-changes" style="display:none">
+  <div class="card">
+    <div id="changes-net" class="net-summary" style="display:none"></div>
+    <div id="changes-list"></div>
+    <div id="changes-empty" style="display:none">No notable changes today.</div>
+  </div>
+  <div class="actions">
+    <button onclick="loadChanges()">Refresh</button>
+    <span id="changes-status" style="font-size:0.85rem;color:var(--muted)"></span>
+  </div>
 </div>
 
 <script>
@@ -335,6 +423,57 @@ async function saveConfig() {
 }
 
 loadConfig();
+
+function showTab(name) {
+  document.getElementById('tab-config').style.display = name === 'config' ? '' : 'none';
+  document.getElementById('tab-changes').style.display = name === 'changes' ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', (i === 0) === (name === 'config'));
+  });
+  if (name === 'changes') loadChanges();
+}
+
+async function loadChanges() {
+  const statusEl = document.getElementById('changes-status');
+  const listEl = document.getElementById('changes-list');
+  const netEl = document.getElementById('changes-net');
+  const emptyEl = document.getElementById('changes-empty');
+  statusEl.textContent = 'Loading...';
+  listEl.innerHTML = '';
+  netEl.style.display = 'none';
+  emptyEl.style.display = 'none';
+  try {
+    const resp = await fetch('/api/daily-changes');
+    const data = await resp.json();
+    const changes = data.changes || [];
+    statusEl.textContent = 'Updated ' + new Date().toLocaleTimeString();
+    if (changes.length === 0) {
+      emptyEl.style.display = '';
+      return;
+    }
+    const net = changes.reduce((s, c) => s + c.change, 0);
+    const netCls = net >= 0 ? 'pos' : 'neg';
+    netEl.innerHTML = 'Net today: <strong class="' + netCls + '">' + (net >= 0 ? '+' : '') + '$' + net.toFixed(2) + '</strong>';
+    netEl.style.display = '';
+    listEl.innerHTML = changes.map(c => {
+      const cls = c.change >= 0 ? 'pos' : 'neg';
+      const sign = c.change >= 0 ? '+' : '';
+      const url = 'https://polymarket.com/event/' + c.event_slug;
+      return '<div class="change-item">' +
+        '<div class="change-market">' +
+          '<a href="' + url + '" target="_blank">' + c.title + '</a>' +
+          '<div class="change-outcome">' + c.outcome + ' &nbsp;' + c.base_price + '¢ → ' + c.cur_price + '¢</div>' +
+        '</div>' +
+        '<div class="change-value">' +
+          '<div class="change-delta ' + cls + '">' + sign + '$' + c.change.toFixed(2) + '</div>' +
+          '<div class="change-detail">$' + c.base_value.toFixed(2) + ' → $' + c.cur_value.toFixed(2) + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    statusEl.textContent = 'Error: ' + e.message;
+  }
+}
 </script>
 </body>
 </html>
