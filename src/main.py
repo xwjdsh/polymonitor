@@ -31,13 +31,13 @@ async def _take_daily_baseline(
     state_mgr: StateManager,
 ) -> None:
     """Fetch current positions and save as today's daily baseline."""
-    snapshot: dict[str, tuple[str, str, float, float]] = {}
+    snapshot: dict[str, tuple[str, str, float, float, float]] = {}
     for wallet in config_mgr.config.my_wallets:
         try:
             positions = await client.get_positions(wallet)
             for p in positions:
                 if p.token_id and p.token_id not in snapshot:
-                    snapshot[p.token_id] = (p.title, p.outcome, p.current_value, p.cur_price or 0.0)
+                    snapshot[p.token_id] = (p.title, p.outcome, p.current_value, p.cur_price or 0.0, p.size)
         except Exception:
             logger.exception("Failed to fetch positions for daily baseline (wallet %s)", wallet)
     if snapshot:

@@ -95,17 +95,32 @@ async def get_daily_changes():
                         "outcome": p.outcome,
                         "value": p.current_value,
                         "price": p.cur_price or 0.0,
+                        "size": p.size,
                         "event_slug": p.event_slug,
                     }
         except Exception:
             logger.exception("Failed to fetch positions for daily changes")
+
+    # Reset baseline for positions where size changed (buy/sell): update to current
+    # values so subsequent price moves are tracked from the new position size.
+    baseline_updated = False
+    for token_id, cur in current.items():
+        base = baseline.get(token_id)
+        if base is None:
+            continue
+        _, _, _, _, base_size = base
+        if base_size > 0 and cur["size"] != base_size:
+            baseline[token_id] = (cur["title"], cur["outcome"], cur["value"], cur["price"], cur["size"])
+            baseline_updated = True
+    if baseline_updated:
+        _state_mgr.save_daily_baseline(baseline)
 
     changes = []
     for token_id, cur in current.items():
         base = baseline.get(token_id)
         if base is None:
             continue
-        _, _, base_value, base_price = base
+        _, _, base_value, base_price, base_size = base
         change = cur["value"] - base_value
         if abs(change) < 0.01:
             continue

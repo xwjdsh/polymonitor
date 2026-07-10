@@ -140,7 +140,7 @@ class StateManager:
 
     def save_daily_baseline(
         self,
-        snapshot: dict[str, tuple[str, str, float, float]],
+        snapshot: dict[str, tuple[str, str, float, float, float]],
     ) -> None:
         """Save today's position values as baseline for daily change comparison."""
         self._ensure_dir()
@@ -154,10 +154,10 @@ class StateManager:
         try:
             with os.fdopen(fd, "w", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow(["token_id", "title", "outcome", "value", "price"])
+                writer.writerow(["token_id", "title", "outcome", "value", "price", "size"])
                 for token_id in sorted(snapshot):
-                    title, outcome, value, price = snapshot[token_id]
-                    writer.writerow([token_id, title, outcome, str(value), str(price)])
+                    title, outcome, value, price, size = snapshot[token_id]
+                    writer.writerow([token_id, title, outcome, str(value), str(price), str(size)])
             os.replace(tmp_path, target)
         except BaseException:
             try:
@@ -167,13 +167,13 @@ class StateManager:
             raise
         logger.debug("Saved daily baseline to %s", target)
 
-    def load_daily_baseline(self) -> dict[str, tuple[str, str, float, float]] | None:
+    def load_daily_baseline(self) -> dict[str, tuple[str, str, float, float, float]] | None:
         """Load today's position baseline. Returns None if not yet taken."""
         today = datetime.now(timezone.utc).strftime("%Y%m%d")
         path = self._dir / f"daily_baseline_{today}.csv"
         if not path.exists():
             return None
-        snapshot: dict[str, tuple[str, str, float, float]] = {}
+        snapshot: dict[str, tuple[str, str, float, float, float]] = {}
         with open(path, newline="") as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -182,6 +182,7 @@ class StateManager:
                     row["outcome"],
                     float(row["value"]),
                     float(row.get("price", 0)),
+                    float(row.get("size", 0)),
                 )
         logger.debug("Loaded daily baseline from %s", path)
         return snapshot
