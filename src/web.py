@@ -168,6 +168,12 @@ HTML_PAGE = """\
   .ignore-field input[type=checkbox] { width: auto; margin-bottom: 0; accent-color: var(--accent); width: 1.1rem; height: 1.1rem; cursor: pointer; }
   .field-group { display: flex; flex-direction: column; flex: 1; min-width: 0; }
   .field-group input, .field-group select { margin-bottom: 0; }
+  .combobox-wrap { position: relative; }
+  .combo-input { margin-bottom: 0; }
+  .combo-dropdown { position: absolute; z-index: 100; background: var(--card); border: 1px solid var(--border); border-radius: 4px; width: 100%; max-height: 200px; overflow-y: auto; list-style: none; padding: 0.25rem 0; margin: 2px 0 0; display: none; }
+  .combo-dropdown li { padding: 0.35rem 0.75rem; cursor: pointer; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .combo-dropdown li:hover { background: var(--border); }
+  .combo-dropdown li span { color: var(--muted); }
   /* Tabs */
   .tabs { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
   .tab-btn { background: transparent; color: var(--muted); border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 0.5rem 1.25rem; font-size: 0.95rem; cursor: pointer; margin-bottom: -1px; }
@@ -269,17 +275,54 @@ HTML_PAGE = """\
 <script>
 let positions = []; // [{condition_id, title, outcome, event_title}]
 
-function marketOptionHtml(selected) {
-  let html = '<option value="">-- select market --</option>';
-  for (const p of positions) {
-    const label = p.title + ' (' + p.outcome + ')';
-    const sel = p.condition_id === selected ? ' selected' : '';
-    html += '<option value="' + p.condition_id + '"' + sel + '>' + label + '</option>';
+function comboFieldHtml() {
+  return '<div class="field-group" style="flex:2"><div class="sub-label">Market</div>' +
+    '<div class="combobox-wrap">' +
+      '<input type="text" class="combo-input" placeholder="Search market..." autocomplete="off">' +
+      '<input type="hidden" class="combo-value">' +
+      '<ul class="combo-dropdown"></ul>' +
+    '</div></div>';
+}
+
+function initCombobox(row, selectedId) {
+  const wrap = row.querySelector('.combobox-wrap');
+  const input = wrap.querySelector('.combo-input');
+  const hidden = wrap.querySelector('.combo-value');
+  const dropdown = wrap.querySelector('.combo-dropdown');
+
+  function filter(q) {
+    if (!q) return positions;
+    const lq = q.toLowerCase();
+    return positions.filter(p =>
+      p.title.toLowerCase().includes(lq) || p.outcome.toLowerCase().includes(lq)
+    );
   }
-  if (selected && !positions.find(p => p.condition_id === selected)) {
-    html += '<option value="' + selected + '" selected>' + selected + '</option>';
+
+  function renderDropdown(matches) {
+    if (!matches.length) { dropdown.style.display = 'none'; return; }
+    dropdown.innerHTML = matches.slice(0, 20).map(p =>
+      '<li data-id="' + p.condition_id + '">' + p.title + ' <span>(' + p.outcome + ')</span></li>'
+    ).join('');
+    dropdown.style.display = '';
+    dropdown.querySelectorAll('li').forEach(li => {
+      li.addEventListener('mousedown', e => {
+        e.preventDefault();
+        hidden.value = li.dataset.id;
+        input.value = li.firstChild.textContent + li.querySelector('span').textContent;
+        dropdown.style.display = 'none';
+      });
+    });
   }
-  return html;
+
+  if (selectedId) {
+    const pos = positions.find(p => p.condition_id === selectedId);
+    input.value = pos ? pos.title + ' (' + pos.outcome + ')' : selectedId;
+    hidden.value = selectedId;
+  }
+
+  input.addEventListener('focus', () => renderDropdown(filter(input.value)));
+  input.addEventListener('input', () => { hidden.value = ''; renderDropdown(filter(input.value)); });
+  input.addEventListener('blur', () => setTimeout(() => { dropdown.style.display = 'none'; }, 150));
 }
 
 function addPmRow(conditionId, above, below, threshold, ignored) {
@@ -287,13 +330,14 @@ function addPmRow(conditionId, above, below, threshold, ignored) {
   const row = document.createElement('div');
   row.className = 'override-row';
   row.innerHTML =
-    '<div class="field-group" style="flex:2"><div class="sub-label">Market</div><select>' + marketOptionHtml(conditionId || '') + '</select></div>' +
+    comboFieldHtml() +
     '<div class="field-group"><div class="sub-label">Above</div><input type="number" step="0.01" min="0" max="1" placeholder="-" value="' + (above != null ? above : '') + '"></div>' +
     '<div class="field-group"><div class="sub-label">Below</div><input type="number" step="0.01" min="0" max="1" placeholder="-" value="' + (below != null ? below : '') + '"></div>' +
     '<div class="field-group"><div class="sub-label">Threshold</div><input type="number" step="0.01" min="0" max="1" placeholder="-" value="' + (threshold != null ? threshold : '') + '"></div>' +
     '<div class="ignore-field"><div class="sub-label">Ignore</div><input type="checkbox"' + (ignored ? ' checked' : '') + '></div>' +
     '<button class="remove-btn" onclick="this.parentElement.remove()">X</button>';
   container.appendChild(row);
+  initCombobox(row, conditionId || '');
 }
 
 function addPcRow(conditionId, threshold) {
@@ -301,10 +345,11 @@ function addPcRow(conditionId, threshold) {
   const row = document.createElement('div');
   row.className = 'override-row';
   row.innerHTML =
-    '<div class="field-group" style="flex:2"><div class="sub-label">Market</div><select>' + marketOptionHtml(conditionId || '') + '</select></div>' +
+    comboFieldHtml() +
     '<div class="field-group"><div class="sub-label">Threshold</div><input type="number" step="0.01" min="0" placeholder="-" value="' + (threshold != null ? threshold : '') + '"></div>' +
     '<button class="remove-btn" onclick="this.parentElement.remove()">X</button>';
   container.appendChild(row);
+  initCombobox(row, conditionId || '');
 }
 
 function populate(cfg) {
@@ -328,10 +373,9 @@ function populate(cfg) {
 function collect() {
   const pmMarkets = {};
   for (const row of document.getElementById('pm_markets').children) {
-    const sel = row.querySelector('select');
     const inputs = row.querySelectorAll('input[type=number]');
     const checkbox = row.querySelector('input[type=checkbox]');
-    const cid = sel.value;
+    const cid = row.querySelector('.combo-value').value;
     if (!cid) continue;
     const entry = {};
     if (inputs[0].value !== '') entry.above = Number(inputs[0].value);
@@ -343,9 +387,8 @@ function collect() {
 
   const pcMarkets = {};
   for (const row of document.getElementById('pc_markets').children) {
-    const sel = row.querySelector('select');
-    const inputs = row.querySelectorAll('input');
-    const cid = sel.value;
+    const inputs = row.querySelectorAll('input[type=number]');
+    const cid = row.querySelector('.combo-value').value;
     if (!cid) continue;
     const entry = {};
     if (inputs[0].value !== '') entry.threshold = Number(inputs[0].value);
