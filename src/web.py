@@ -303,7 +303,7 @@ function initCombobox(row, selectedId) {
     dropdown.innerHTML = matches.slice(0, 20).map(p =>
       '<li data-id="' + p.condition_id + '">' + p.title + ' <span>(' + p.outcome + ')</span></li>'
     ).join('');
-    dropdown.style.display = '';
+    dropdown.style.display = 'block';
     dropdown.querySelectorAll('li').forEach(li => {
       li.addEventListener('mousedown', e => {
         e.preventDefault();
@@ -496,7 +496,7 @@ async function loadChanges() {
     const net = changes.reduce((s, c) => s + c.change, 0);
     const netCls = net >= 0 ? 'pos' : 'neg';
     netEl.innerHTML = 'Net today: <strong class="' + netCls + '">' + (net >= 0 ? '+' : '') + '$' + net.toFixed(2) + '</strong>';
-    netEl.style.display = '';
+    netEl.style.display = 'block';
     listEl.innerHTML = changes.map(c => {
       const cls = c.change >= 0 ? 'pos' : 'neg';
       const sign = c.change >= 0 ? '+' : '';
