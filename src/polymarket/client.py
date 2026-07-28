@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -13,9 +14,11 @@ DATA_API = "https://data-api.polymarket.com"
 GAMMA_API = "https://gamma-api.polymarket.com"
 CLOB_API = "https://clob.polymarket.com"
 
+_MAX_ATTEMPTS = 4
+
 
 class RateLimitError(Exception):
-    """Raised when Polymarket API returns HTTP 429."""
+    """Raised when Polymarket API returns HTTP 429 after all retries."""
 
 
 class PolymarketClient:
@@ -31,11 +34,23 @@ class PolymarketClient:
         await self._http.aclose()
 
     async def _get(self, url: str, params: dict[str, Any] | None = None) -> Any:
-        resp = await self._http.get(url, params=params)
-        if resp.status_code == 429:
-            raise RateLimitError(f"Rate limited by Polymarket API ({url})")
-        resp.raise_for_status()
-        return resp.json()
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                resp = await self._http.get(url, params=params)
+                if resp.status_code == 429:
+                    raise RateLimitError(f"Rate limited by Polymarket API ({url})")
+                resp.raise_for_status()
+                return resp.json()
+            except (RateLimitError, httpx.TimeoutException) as exc:
+                if attempt < _MAX_ATTEMPTS - 1:
+                    wait = 2 ** attempt
+                    logger.warning(
+                        "%s — retrying in %ds (attempt %d/%d)",
+                        exc, wait, attempt + 1, _MAX_ATTEMPTS,
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    raise
 
     # ── Positions ──────────────────────────────────────────────
 
@@ -75,15 +90,29 @@ class PolymarketClient:
         """Fetch midpoint prices for multiple tokens in a single request."""
         if not token_ids:
             return {}
-        resp = await self._http.post(
-            f"{CLOB_API}/midpoints",
-            json=[{"token_id": tid} for tid in token_ids],
-        )
-        if resp.status_code == 429:
-            raise RateLimitError(f"Rate limited by Polymarket API ({CLOB_API}/midpoints)")
-        resp.raise_for_status()
-        data = resp.json()
-        return {tid: float(price) for tid, price in data.items()}
+        url = f"{CLOB_API}/midpoints"
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                resp = await self._http.post(
+                    url,
+                    json=[{"token_id": tid} for tid in token_ids],
+                )
+                if resp.status_code == 429:
+                    raise RateLimitError(f"Rate limited by Polymarket API ({url})")
+                resp.raise_for_status()
+                data = resp.json()
+                return {tid: float(price) for tid, price in data.items()}
+            except (RateLimitError, httpx.TimeoutException) as exc:
+                if attempt < _MAX_ATTEMPTS - 1:
+                    wait = 2 ** attempt
+                    logger.warning(
+                        "%s — retrying in %ds (attempt %d/%d)",
+                        exc, wait, attempt + 1, _MAX_ATTEMPTS,
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    raise
+        raise AssertionError("unreachable")  # _MAX_ATTEMPTS > 0 guarantees raise or return above
 
     async def get_price(self, token_id: str, side: str = "buy") -> float:
         data = await self._get(
